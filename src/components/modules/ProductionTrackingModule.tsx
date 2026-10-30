@@ -1,189 +1,1034 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
+  Activity,
   AlertTriangle,
   CheckCircle2,
-  Check,
-  Eye,
   Clock,
-  Calendar,
   Layers,
   ChevronRight,
-  Truck,
-  FileCheck2,
+  Search,
+  Plus,
+  History,
   AlertCircle,
-  Activity
+  Check,
+  X,
+  SlidersHorizontal
 } from 'lucide-react';
 import type { Order, AppUser } from '../../types';
 
+// =========================================================================
+// DATA MODELS & TYPES
+// =========================================================================
+
+export type StageStatus = 'pending' | 'in_progress' | 'completed' | 'delayed' | 'blocked';
+
+export interface ProductionStageDetail {
+  id: string;
+  stageNumber: number; // 1 to 6
+  name: string;        // 'Yarn Inward', 'Warping & Sizing', 'Loom Weaving', 'Dyeing & Finishing', 'Quality Inspection', 'Dispatch'
+  department: string;
+  status: StageStatus;
+  plannedStartDate: string;
+  actualStartDate: string;
+  plannedCompletionDate: string;
+  actualCompletionDate: string;
+  targetQuantity: number;
+  producedQuantity: number;
+  rejectedQuantity: number;
+  remainingQuantity: number;
+  assignedSupervisor: string;
+  assignedMachine: string;
+  workersCount: number;
+  dailyTarget: number;
+  dailyActual: number;
+  delayReason?: string;
+  recoveryAction?: string;
+  notes?: string;
+}
+
+export interface ProductProductionItem {
+  id: string; // e.g. 'LP-901-A'
+  name: string; // 'Formal Shirt - Design A'
+  designCode: string; // 'FS-A-01'
+  category: string;
+  quantity: number; // pieces
+  completedQuantity: number;
+  rejectedQuantity: number;
+  remainingQuantity: number;
+  currentStage: string;
+  progressPercent: number;
+  riskStatus: 'on_track' | 'at_risk' | 'delayed' | 'completed';
+  riskReason?: string;
+  stages: ProductionStageDetail[];
+}
+
+export interface ProductionOrderWithProducts {
+  id: string; // e.g. 'LP-901'
+  clientName: string;
+  clientEmail: string;
+  productCategory: string;
+  totalQuantity: number; // Sum of product quantities
+  orderDate: string;
+  committedDeliveryDate: string;
+  forecastDeliveryDate: string;
+  status: 'not_started' | 'in_production' | 'at_risk' | 'delayed' | 'completed';
+  riskStatus: 'on_track' | 'at_risk' | 'delayed';
+  riskReason?: string;
+  assignedSupervisorId: string;
+  assignedSupervisorName: string;
+  products: ProductProductionItem[];
+}
+
+export interface SupervisorShiftReport {
+  id: string;
+  orderId: string;
+  productId: string;
+  productName: string;
+  stageName: string;
+  machineId: string;
+  workersAssigned: number;
+  dailyTargetQuantity: number;
+  actualProducedQuantity: number;
+  rejectedQuantity: number;
+  machineDowntimeMinutes: number;
+  delayReason?: string;
+  remarks: string;
+  submittedBy: string;
+  timestamp: string;
+}
+
+export interface ProductionRiskAlert {
+  id: string;
+  severity: 'critical' | 'warning' | 'info';
+  alertType:
+    | 'material_shortage'
+    | 'supplier_delay'
+    | 'machine_downtime'
+    | 'worker_shortage'
+    | 'below_target'
+    | 'quality_spike';
+  affectedOrderId: string;
+  affectedProductId: string;
+  affectedProductName: string;
+  affectedStage: string;
+  reason: string;
+  businessImpact: string;
+  detectedTime: string;
+  suggestedAction: string;
+}
+
+// =========================================================================
+// DEFAULT 6-STAGE FACTORY TEMPLATE
+// =========================================================================
+
+const generateSixStages = (
+  productId: string,
+  productQuantity: number,
+  targetStageNum: number, // Which stage is current (1 to 6)
+  supervisor: string,
+  isAtRisk: boolean = false
+): ProductionStageDetail[] => {
+  const stageDefs = [
+    { num: 1, name: 'Yarn Inward', dept: 'Raw Material Bay & Cone Lab', machine: 'Zellweger Uster Yarn Tester #2' },
+    { num: 2, name: 'Warping & Sizing', dept: 'Warping Hall B', machine: 'Karl Mayer Direct Warper & Sucker Sizing Line' },
+    { num: 3, name: 'Loom Weaving', dept: 'Airjet Weaving Shed 1', machine: 'Toyota JAT810 Airjet Looms #12-16' },
+    { num: 4, name: 'Dyeing & Finishing', dept: 'Continuous Finishing Shed C', machine: 'Monforts 8-Chamber Stenter & Jigger #4' },
+    { num: 5, name: 'Quality Inspection', dept: 'Fabric & Garment QA Bay', machine: 'Daro 4-Point Illuminated QA Table #1' },
+    { num: 6, name: 'Dispatch', dept: 'Automated Cartoning & Export Bay', machine: 'Strapping & Barcode Verification Unit' }
+  ];
+
+  return stageDefs.map((def) => {
+    let status: StageStatus = 'pending';
+    let progress = 0;
+    let produced = 0;
+    let rejected = 0;
+    let actualStart = 'Pending';
+    let actualEnd = 'Pending';
+
+    if (def.num < targetStageNum) {
+      status = 'completed';
+      progress = 100;
+      produced = productQuantity;
+      rejected = Math.round(productQuantity * 0.008); // 0.8% normal variance
+      actualStart = 'Oct 2026';
+      actualEnd = 'Oct 2026';
+    } else if (def.num === targetStageNum) {
+      status = isAtRisk ? 'delayed' : 'in_progress';
+      progress = isAtRisk ? 42 : 80;
+      produced = Math.round(productQuantity * (progress / 100));
+      rejected = Math.round(produced * 0.015);
+      actualStart = '28 Oct 2026';
+      actualEnd = 'Ongoing';
+    }
+
+    const remaining = Math.max(0, productQuantity - produced);
+    const dailyTarget = Math.round(productQuantity / 4) || 500;
+    const dailyActual = status === 'completed' ? dailyTarget : (isAtRisk ? Math.round(dailyTarget * 0.65) : Math.round(dailyTarget * 0.95));
+
+    return {
+      id: `${productId}_stg_${def.num}`,
+      stageNumber: def.num,
+      name: def.name,
+      department: def.dept,
+      status,
+      plannedStartDate: '24 Oct 2026',
+      actualStartDate: actualStart,
+      plannedCompletionDate: '05 Nov 2026',
+      actualCompletionDate: actualEnd,
+      targetQuantity: productQuantity,
+      producedQuantity: produced,
+      rejectedQuantity: rejected,
+      remainingQuantity: remaining,
+      assignedSupervisor: supervisor,
+      assignedMachine: def.machine,
+      workersCount: def.num === 3 ? 18 : (def.num === 4 ? 12 : 8),
+      dailyTarget,
+      dailyActual,
+      delayReason: isAtRisk && def.num === targetStageNum ? 'Raw material deficit & loom pace below daily target' : undefined,
+      recoveryAction: isAtRisk && def.num === targetStageNum ? 'Authorize 2-hour shift overtime and expedite PO dispatch' : undefined,
+      notes: `${def.name} operations on ${def.machine}`
+    };
+  });
+};
+
+// =========================================================================
+// INITIAL MOCK MASTER PRODUCTION ORDERS (With Multi-Product Breakdown)
+// =========================================================================
+
+const INITIAL_PRODUCTION_ORDERS: ProductionOrderWithProducts[] = [
+  // Order LP-901: Fashion House (5,000 pcs across 3 distinct designs)
+  {
+    id: 'LP-901',
+    clientName: 'Fashion House',
+    clientEmail: 'procurement@fashionhouse.com',
+    productCategory: 'Apparel (Formalwear & Trousers)',
+    totalQuantity: 5000,
+    orderDate: '20 Oct 2026',
+    committedDeliveryDate: '05 Nov 2026',
+    forecastDeliveryDate: '04 Nov 2026', // On track
+    status: 'in_production',
+    riskStatus: 'on_track',
+    riskReason: 'Almost completed · Quality inspection underway',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar (Floor Supervisor)',
+    products: [
+      {
+        id: 'LP-901-A',
+        name: 'Formal Shirt - Design A',
+        designCode: 'FS-A-01',
+        category: 'Formalwear',
+        quantity: 2000,
+        completedQuantity: 1800,
+        rejectedQuantity: 20,
+        remainingQuantity: 200,
+        currentStage: 'Quality Inspection',
+        progressPercent: 90,
+        riskStatus: 'on_track',
+        stages: generateSixStages('LP-901-A', 2000, 5, 'Ramesh Kumar')
+      },
+      {
+        id: 'LP-901-B',
+        name: 'Formal Pants - Design B',
+        designCode: 'FP-B-02',
+        category: 'Trousers',
+        quantity: 1500,
+        completedQuantity: 1275,
+        rejectedQuantity: 15,
+        remainingQuantity: 225,
+        currentStage: 'Quality Inspection',
+        progressPercent: 85,
+        riskStatus: 'on_track',
+        stages: generateSixStages('LP-901-B', 1500, 5, 'Ramesh Kumar')
+      },
+      {
+        id: 'LP-901-C',
+        name: 'Casual Shirt - Design C',
+        designCode: 'CS-C-03',
+        category: 'Casualwear',
+        quantity: 1500,
+        completedQuantity: 1200,
+        rejectedQuantity: 10,
+        remainingQuantity: 300,
+        currentStage: 'Dyeing & Finishing',
+        progressPercent: 80,
+        riskStatus: 'on_track',
+        stages: generateSixStages('LP-901-C', 1500, 4, 'Ramesh Kumar')
+      }
+    ]
+  },
+
+  // Order LP-902: Urban Textiles (8,000 pcs across 2 products - AT RISK)
+  {
+    id: 'LP-902',
+    clientName: 'Urban Textiles',
+    clientEmail: 'orders@urbantextiles.com',
+    productCategory: 'Apparel (Shirts)',
+    totalQuantity: 8000,
+    orderDate: '22 Oct 2026',
+    committedDeliveryDate: '06 Nov 2026',
+    forecastDeliveryDate: '09 Nov 2026', // 3-day forecast delay!
+    status: 'at_risk',
+    riskStatus: 'at_risk',
+    riskReason: 'Material shortage (600m raw fabric) & weaving paced 35% below daily target',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar (Floor Supervisor)',
+    products: [
+      {
+        id: 'LP-902-A',
+        name: 'Urban Cotton Oxford Shirt',
+        designCode: 'UCO-01',
+        category: 'Shirts',
+        quantity: 5000,
+        completedQuantity: 2100,
+        rejectedQuantity: 35,
+        remainingQuantity: 2900,
+        currentStage: 'Loom Weaving',
+        progressPercent: 42,
+        riskStatus: 'at_risk',
+        riskReason: 'Awaiting raw fabric batch PO-1001 arrival from Sri Textiles',
+        stages: generateSixStages('LP-902-A', 5000, 3, 'Ramesh Kumar', true)
+      },
+      {
+        id: 'LP-902-B',
+        name: 'Urban Poplin Shirt',
+        designCode: 'UPS-02',
+        category: 'Shirts',
+        quantity: 3000,
+        completedQuantity: 1260,
+        rejectedQuantity: 25,
+        remainingQuantity: 1740,
+        currentStage: 'Loom Weaving',
+        progressPercent: 42,
+        riskStatus: 'at_risk',
+        riskReason: 'Weaving paced below daily target (650 vs 1,000 pcs/day)',
+        stages: generateSixStages('LP-902-B', 3000, 3, 'Ramesh Kumar', true)
+      }
+    ]
+  },
+
+  // Order LP-903: Style World (3,500 pcs - Bedsheets)
+  {
+    id: 'LP-903',
+    clientName: 'Style World',
+    clientEmail: 'procurement@styleworld.com',
+    productCategory: 'Home Living (Bedding)',
+    totalQuantity: 3500,
+    orderDate: '24 Oct 2026',
+    committedDeliveryDate: '12 Nov 2026',
+    forecastDeliveryDate: '12 Nov 2026',
+    status: 'in_production',
+    riskStatus: 'on_track',
+    riskReason: 'Warping & sizing cleared on schedule',
+    assignedSupervisorId: 'usr_sup_2',
+    assignedSupervisorName: 'Murugan K. (Warping Supervisor)',
+    products: [
+      {
+        id: 'LP-903-A',
+        name: 'King Size Bedsheet Set (300 TC)',
+        designCode: 'BS-K-01',
+        category: 'Bedding',
+        quantity: 2000,
+        completedQuantity: 500,
+        rejectedQuantity: 8,
+        remainingQuantity: 1500,
+        currentStage: 'Warping & Sizing',
+        progressPercent: 25,
+        riskStatus: 'on_track',
+        stages: generateSixStages('LP-903-A', 2000, 2, 'Murugan K.')
+      },
+      {
+        id: 'LP-903-B',
+        name: 'Queen Size Bedsheet Set (300 TC)',
+        designCode: 'BS-Q-02',
+        category: 'Bedding',
+        quantity: 1500,
+        completedQuantity: 375,
+        rejectedQuantity: 5,
+        remainingQuantity: 1125,
+        currentStage: 'Warping & Sizing',
+        progressPercent: 25,
+        riskStatus: 'on_track',
+        stages: generateSixStages('LP-903-B', 1500, 2, 'Murugan K.')
+      }
+    ]
+  },
+
+  // Order LP-904: Home Living (1,200 pcs - Curtains)
+  {
+    id: 'LP-904',
+    clientName: 'Home Living',
+    clientEmail: 'orders@homeliving.com',
+    productCategory: 'Drapes & Curtains',
+    totalQuantity: 1200,
+    orderDate: '26 Oct 2026',
+    committedDeliveryDate: '20 Nov 2026',
+    forecastDeliveryDate: '20 Nov 2026',
+    status: 'in_production',
+    riskStatus: 'on_track',
+    riskReason: 'Yarn inward verified. Warping preparation active.',
+    assignedSupervisorId: 'usr_sup_2',
+    assignedSupervisorName: 'Murugan K. (Warping Supervisor)',
+    products: [
+      {
+        id: 'LP-904-A',
+        name: 'Blackout Curtains - Gold Jacquard',
+        designCode: 'CUR-BJ-01',
+        category: 'Drapes',
+        quantity: 700,
+        completedQuantity: 70,
+        rejectedQuantity: 2,
+        remainingQuantity: 630,
+        currentStage: 'Yarn Inward',
+        progressPercent: 10,
+        riskStatus: 'on_track',
+        stages: generateSixStages('LP-904-A', 700, 1, 'Murugan K.')
+      },
+      {
+        id: 'LP-904-B',
+        name: 'Sheer Linen Drapes - Ivory',
+        designCode: 'CUR-SL-02',
+        category: 'Drapes',
+        quantity: 500,
+        completedQuantity: 50,
+        rejectedQuantity: 1,
+        remainingQuantity: 450,
+        currentStage: 'Yarn Inward',
+        progressPercent: 10,
+        riskStatus: 'on_track',
+        stages: generateSixStages('LP-904-B', 500, 1, 'Murugan K.')
+      }
+    ]
+  },
+
+  // Order TX-1024: ABC Garments (5,000 pcs)
+  {
+    id: 'TX-1024',
+    clientName: 'ABC Garments',
+    clientEmail: 'orders@abcgarments.com',
+    productCategory: 'Shirts',
+    totalQuantity: 5000,
+    orderDate: '18 Oct 2026',
+    committedDeliveryDate: '15 Nov 2026',
+    forecastDeliveryDate: '14 Nov 2026',
+    status: 'in_production',
+    riskStatus: 'on_track',
+    riskReason: 'Loom weaving completed; dyeing active',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar (Floor Supervisor)',
+    products: [
+      {
+        id: 'TX-1024-A',
+        name: 'Cotton Oxford Shirt',
+        designCode: 'COS-01',
+        category: 'Shirts',
+        quantity: 3000,
+        completedQuantity: 1950,
+        rejectedQuantity: 25,
+        remainingQuantity: 1050,
+        currentStage: 'Dyeing & Finishing',
+        progressPercent: 65,
+        riskStatus: 'on_track',
+        stages: generateSixStages('TX-1024-A', 3000, 4, 'Ramesh Kumar')
+      },
+      {
+        id: 'TX-1024-B',
+        name: 'Twill Formal Shirt',
+        designCode: 'TFS-02',
+        category: 'Shirts',
+        quantity: 2000,
+        completedQuantity: 1240,
+        rejectedQuantity: 18,
+        remainingQuantity: 760,
+        currentStage: 'Loom Weaving',
+        progressPercent: 62,
+        riskStatus: 'on_track',
+        stages: generateSixStages('TX-1024-B', 2000, 3, 'Ramesh Kumar')
+      }
+    ]
+  },
+
+  // Order TX-1025: StyleMart (3,000 pcs - AT RISK)
+  {
+    id: 'TX-1025',
+    clientName: 'StyleMart',
+    clientEmail: 'orders@stylemart.com',
+    productCategory: 'Printed Fabric',
+    totalQuantity: 3000,
+    orderDate: '21 Oct 2026',
+    committedDeliveryDate: '18 Nov 2026',
+    forecastDeliveryDate: '21 Nov 2026', // 3-day forecast delay!
+    status: 'at_risk',
+    riskStatus: 'at_risk',
+    riskReason: 'Reactive chemical dye deficit (50 kg) blocking continuous dyeing',
+    assignedSupervisorId: 'usr_sup_3',
+    assignedSupervisorName: 'Priya Sharma (Dyeing Chemist)',
+    products: [
+      {
+        id: 'TX-1025-A',
+        name: 'Indigo Block Printed Fabric (60")',
+        designCode: 'PRT-IND-01',
+        category: 'Fabric',
+        quantity: 3000,
+        completedQuantity: 1050,
+        rejectedQuantity: 40,
+        remainingQuantity: 1950,
+        currentStage: 'Dyeing & Finishing',
+        progressPercent: 35,
+        riskStatus: 'at_risk',
+        riskReason: 'Awaiting chemical shipment PO-1003 delivery',
+        stages: generateSixStages('TX-1025-A', 3000, 4, 'Priya Sharma', true)
+      }
+    ]
+  },
+
+  // Order TX-1026: HomeNest (2,000 pcs - COMPLETED)
+  {
+    id: 'TX-1026',
+    clientName: 'HomeNest',
+    clientEmail: 'orders@homenest.com',
+    productCategory: 'Apparel (Trousers)',
+    totalQuantity: 2000,
+    orderDate: '12 Oct 2026',
+    committedDeliveryDate: '20 Nov 2026',
+    forecastDeliveryDate: '28 Oct 2026', // Completed early!
+    status: 'completed',
+    riskStatus: 'on_track',
+    riskReason: '100% produced, inspected and cartoned for dispatch',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar (Floor Supervisor)',
+    products: [
+      {
+        id: 'TX-1026-A',
+        name: 'Casual Linen Chinos',
+        designCode: 'LCN-01',
+        category: 'Trousers',
+        quantity: 2000,
+        completedQuantity: 2000,
+        rejectedQuantity: 14,
+        remainingQuantity: 0,
+        currentStage: 'Dispatch',
+        progressPercent: 100,
+        riskStatus: 'completed',
+        stages: generateSixStages('TX-1026-A', 2000, 7, 'Ramesh Kumar')
+      }
+    ]
+  },
+
+  // Order TX-1027: TechCart (4,500 pcs - NOT STARTED)
+  {
+    id: 'TX-1027',
+    clientName: 'TechCart',
+    clientEmail: 'orders@techcart.com',
+    productCategory: 'Apparel (Polo)',
+    totalQuantity: 4500,
+    orderDate: '28 Oct 2026',
+    committedDeliveryDate: '22 Nov 2026',
+    forecastDeliveryDate: '22 Nov 2026',
+    status: 'not_started',
+    riskStatus: 'on_track',
+    riskReason: 'Production planning scheduled; yarn lot scheduled for receipt',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar (Floor Supervisor)',
+    products: [
+      {
+        id: 'TX-1027-A',
+        name: 'Classic Pique Polo T-Shirt',
+        designCode: 'POL-01',
+        category: 'Polos',
+        quantity: 4500,
+        completedQuantity: 0,
+        rejectedQuantity: 0,
+        remainingQuantity: 4500,
+        currentStage: 'Yarn Inward',
+        progressPercent: 0,
+        riskStatus: 'on_track',
+        stages: generateSixStages('TX-1027-A', 4500, 1, 'Ramesh Kumar')
+      }
+    ]
+  }
+];
+
+const INITIAL_RISK_ALERTS: ProductionRiskAlert[] = [
+  {
+    id: 'pra_1',
+    severity: 'critical',
+    alertType: 'material_shortage',
+    affectedOrderId: 'LP-902',
+    affectedProductId: 'LP-902-A',
+    affectedProductName: 'Urban Cotton Oxford Shirt',
+    affectedStage: 'Loom Weaving',
+    reason: '600m raw cotton fabric shortfall halting Airjet Loom #12-14.',
+    businessImpact: 'Forecast delivery slips from 06 Nov to 09 Nov (3 days late).',
+    detectedTime: '15 mins ago',
+    suggestedAction: 'Release expedited supplier PO-1001 with Sri Textiles.'
+  },
+  {
+    id: 'pra_2',
+    severity: 'critical',
+    alertType: 'material_shortage',
+    affectedOrderId: 'TX-1025',
+    affectedProductId: 'TX-1025-A',
+    affectedProductName: 'Indigo Block Printed Fabric',
+    affectedStage: 'Dyeing & Finishing',
+    reason: '50 kg reactive chemical dye deficit halting dye vats.',
+    businessImpact: '3-day finishing stall pushing delivery to 21 Nov.',
+    detectedTime: '45 mins ago',
+    suggestedAction: 'Authorize emergency regional chemical transfer.'
+  },
+  {
+    id: 'pra_3',
+    severity: 'warning',
+    alertType: 'below_target',
+    affectedOrderId: 'LP-902',
+    affectedProductId: 'LP-902-B',
+    affectedProductName: 'Urban Poplin Shirt',
+    affectedStage: 'Loom Weaving',
+    reason: 'Actual weaving pace is 650 pcs/day vs committed target of 1,000 pcs/day (35% shortfall).',
+    businessImpact: 'Daily variance -350 pcs accumulating schedule deficit.',
+    detectedTime: '2 hours ago',
+    suggestedAction: 'Deploy 2-hour supervisor overtime on Shift B.'
+  },
+  {
+    id: 'pra_4',
+    severity: 'info',
+    alertType: 'machine_downtime',
+    affectedOrderId: 'LP-901',
+    affectedProductId: 'LP-901-C',
+    affectedProductName: 'Casual Shirt - Design C',
+    affectedStage: 'Dyeing & Finishing',
+    reason: 'Stenter line chamber #3 temperature sensor recalibrated (30 mins downtime).',
+    businessImpact: 'Negligible; buffered within finishing shift.',
+    detectedTime: '3 hours ago',
+    suggestedAction: 'Preventative sensor check scheduled for weekend maintenance.'
+  }
+];
+
+const INITIAL_SHIFT_REPORTS: SupervisorShiftReport[] = [
+  {
+    id: 'rep_101',
+    orderId: 'LP-901',
+    productId: 'LP-901-A',
+    productName: 'Formal Shirt - Design A',
+    stageName: 'Quality Inspection',
+    machineId: 'Daro 4-Point QA Table #1',
+    workersAssigned: 8,
+    dailyTargetQuantity: 500,
+    actualProducedQuantity: 480,
+    rejectedQuantity: 8,
+    machineDowntimeMinutes: 15,
+    remarks: '480 pieces passed 4-point visual inspection with 98.4% first-pass yield.',
+    submittedBy: 'Ramesh Kumar (Floor Supervisor)',
+    timestamp: '30 Oct 2026 11:30 AM'
+  },
+  {
+    id: 'rep_102',
+    orderId: 'LP-902',
+    productId: 'LP-902-B',
+    productName: 'Urban Poplin Shirt',
+    stageName: 'Loom Weaving',
+    machineId: 'Toyota JAT810 Airjet Looms #14',
+    workersAssigned: 12,
+    dailyTargetQuantity: 1000,
+    actualProducedQuantity: 650,
+    rejectedQuantity: 25,
+    machineDowntimeMinutes: 45,
+    delayReason: 'Weft yarn breakage & waiting for spare spool replenishment.',
+    remarks: 'Paced below daily target. Air pressure adjusted; shift overtime advised.',
+    submittedBy: 'Ramesh Kumar (Floor Supervisor)',
+    timestamp: '30 Oct 2026 09:15 AM'
+  }
+];
+
+// =========================================================================
+// PROPS INTERFACE (Preserving existing contract)
+// =========================================================================
+
 interface ProductionTrackingModuleProps {
-  orders: Order[];
+  orders?: Order[];
   supervisors?: AppUser[];
-  onSelectOrder: (orderId: string) => void;
-  onOpenOrderModal: (order: Order) => void;
+  onSelectOrder?: (orderId: string) => void;
+  onOpenOrderModal?: (order: Order) => void;
   onUpdateClientProgressView?: (orderId: string) => void;
   onInvestigateDelay?: (orderId: string) => void;
 }
 
 export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> = ({
-  orders,
   onSelectOrder,
-  onOpenOrderModal,
-  onUpdateClientProgressView: _onUpdateClientProgressView,
+  onOpenOrderModal: _onOpenOrderModal,
   onInvestigateDelay: _onInvestigateDelay
 }) => {
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('TX-1024');
-  const [stageFilter, setStageFilter] = useState<string>('all');
+  // Master Production Orders State
+  const [productionOrders, setProductionOrders] = useState<ProductionOrderWithProducts[]>(INITIAL_PRODUCTION_ORDERS);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('LP-901');
+  const [selectedProductId, setSelectedProductId] = useState<string>('LP-901-A');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const selectedOrder = orders.find((o) => o.id === selectedOrderId) || orders[0];
+  // Alerts & Shift Reports State
+  const [riskAlerts] = useState<ProductionRiskAlert[]>(INITIAL_RISK_ALERTS);
+  const [shiftReports, setShiftReports] = useState<SupervisorShiftReport[]>(INITIAL_SHIFT_REPORTS);
 
-  // 5 Textile Production Stages
-  const getOrderProductionStages = (order: Order) => {
-    const isTX1024 = order.id === 'TX-1024';
-    const isTX1025 = order.id === 'TX-1025';
-    const isTX1026 = order.id === 'TX-1026';
+  // Modals & Dedicated Workspaces
+  const [showTimelineModal, setShowTimelineModal] = useState<boolean>(false);
+  const [showShiftUpdateModal, setShowShiftUpdateModal] = useState<boolean>(false);
+  const [showShiftHistoryModal, setShowShiftHistoryModal] = useState<boolean>(false);
+  const [showAllAlertsModal, setShowAllAlertsModal] = useState<boolean>(false);
 
-    return [
-      {
-        id: 'stg_1',
-        name: '1. Cutting',
-        department: 'Pattern & Cutting Floor',
-        plannedDates: '28 Oct - 30 Oct 2026',
-        actualDates: '28 Oct - 29 Oct 2026',
-        progressPercent: 100,
-        status: 'completed' as const,
-        produced: order.quantityMeters,
-        target: order.quantityMeters,
-        dailyTarget: 2500,
-        dailyActual: 2500,
-        workers: '8 Cutters Present',
-        machine: 'CNC Laser Fabric Cutter Active',
-        notes: 'Fabric pattern lay and laser cutting cleared with 99.4% precision.'
-      },
-      {
-        id: 'stg_2',
-        name: '2. Stitching',
-        department: 'Garment Sewing Line A',
-        plannedDates: '30 Oct - 08 Nov 2026',
-        actualDates: '30 Oct - Ongoing',
-        progressPercent: isTX1026 ? 100 : (isTX1024 ? 65 : 0),
-        status: isTX1026 ? ('completed' as const) : (isTX1024 ? ('in_progress' as const) : ('pending' as const)),
-        produced: isTX1026 ? order.quantityMeters : (isTX1024 ? 3250 : 0),
-        target: order.quantityMeters,
-        dailyTarget: 650,
-        dailyActual: isTX1024 ? 650 : 0,
-        workers: '24 Operators Present (Ramesh Kumar)',
-        machine: 'Juki Direct Drive Lockstitch (19 units running)',
-        notes: isTX1024 ? 'Running on track. 3,250 pcs completed. Sensor recalibrated on Line 3.' : 'Pending cutting completion.'
-      },
-      {
-        id: 'stg_3',
-        name: '3. Dyeing',
-        department: 'Continuous Dyeing Bay (Shed B)',
-        plannedDates: '09 Nov - 12 Nov 2026',
-        actualDates: isTX1026 ? 'Completed' : (isTX1025 ? 'Ongoing' : 'Pending'),
-        progressPercent: isTX1026 ? 100 : (isTX1025 ? 35 : (isTX1024 ? 30 : 0)),
-        status: (isTX1025 || isTX1024) ? ('at_risk' as const) : (isTX1026 ? ('completed' as const) : ('pending' as const)),
-        produced: isTX1026 ? order.quantityMeters : (isTX1025 ? 1050 : 1500),
-        target: order.quantityMeters,
-        dailyTarget: 1000,
-        dailyActual: isTX1025 ? 520 : 0,
-        workers: '12 Dye House Staff (Murugan K.)',
-        machine: 'Eco Soft-Flow Dyeing Machine',
-        delayReason: 'Reactive chemical dye deficit (50 kg) & cotton fabric shortage (600 m awaiting PO-1001 arrival)',
-        correctiveAction: 'Dispatch expedited PO-1001 with Sri Textiles; delivery scheduled for 02 Nov.',
-        notes: 'Stage flagged at risk due to raw chemical lead time.'
-      },
-      {
-        id: 'stg_4',
-        name: '4. Finishing',
-        department: 'Garment Finishing & Steam Bay',
-        plannedDates: '13 Nov - 14 Nov 2026',
-        actualDates: isTX1026 ? 'Completed' : 'Pending',
-        progressPercent: isTX1026 ? 100 : 0,
-        status: isTX1026 ? ('completed' as const) : ('pending' as const),
-        produced: isTX1026 ? order.quantityMeters : 0,
-        target: order.quantityMeters,
-        dailyTarget: 2500,
-        dailyActual: 0,
-        workers: 'Steam ironers on standby',
-        machine: 'Veit Steam Finishing Tunnel',
-        notes: 'Waiting for stitching & dyeing completion.'
-      },
-      {
-        id: 'stg_5',
-        name: '5. Quality Check & Packing',
-        department: 'Final QA & Carton Dispatch Bay',
-        plannedDates: '14 Nov - 15 Nov 2026',
-        actualDates: isTX1026 ? 'Completed' : 'Pending',
-        progressPercent: isTX1026 ? 100 : 0,
-        status: isTX1026 ? ('completed' as const) : ('pending' as const),
-        produced: isTX1026 ? order.quantityMeters : 0,
-        target: order.quantityMeters,
-        dailyTarget: 5000,
-        dailyActual: 0,
-        workers: 'AQL 2.5 Audit Inspectors',
-        machine: 'Needle Detector & Barcode Sealers Ready',
-        notes: 'Scheduled for dispatch inspection on target delivery date.'
-      }
-    ];
+  // Toast feedback
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3800);
   };
 
-  const stages = getOrderProductionStages(selectedOrder);
-
-  const getOrderStatusBadge = (orderId: string) => {
-    switch (orderId) {
-      case 'TX-1024':
-        return <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700 }}>In Progress</span>;
-      case 'TX-1025':
-        return <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700 }}>At Risk</span>;
-      case 'TX-1026':
-        return <span style={{ background: '#dff1ea', color: '#1e473d', padding: '3px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700 }}>Completed</span>;
-      case 'TX-1027':
-      case 'TX-1028':
-      default:
-        return <span style={{ background: '#f1f5f9', color: '#64748b', padding: '3px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700 }}>Pending</span>;
-    }
-  };
-
-  const getOrderProgress = (orderId: string): number => {
-    switch (orderId) {
-      case 'TX-1024': return 65;
-      case 'TX-1025': return 35;
-      case 'TX-1026': return 100;
-      case 'TX-1027': return 0;
-      case 'TX-1028': return 0;
-      default: return 50;
-    }
-  };
-
-  const filteredOrders = orders.filter((o) => {
-    if (stageFilter === 'in_production') return o.id === 'TX-1024';
-    if (stageFilter === 'at_risk') return o.id === 'TX-1025';
-    if (stageFilter === 'completed') return o.id === 'TX-1026';
-    return true;
+  // Shift Log Form State
+  const [shiftForm, setShiftForm] = useState({
+    orderId: 'LP-901',
+    productId: 'LP-901-A',
+    stageName: 'Quality Inspection',
+    machineId: 'Daro 4-Point QA Table #1',
+    workersAssigned: 8,
+    dailyTargetQuantity: 500,
+    actualProducedQuantity: 480,
+    rejectedQuantity: 8,
+    machineDowntimeMinutes: 0,
+    delayReason: '',
+    remarks: 'Shift completed with 98.4% first-pass inspection yield.',
+    submittedBy: 'Ramesh Kumar (Floor Supervisor)'
   });
+
+  // =========================================================================
+  // DYNAMIC CALCULATIONS & METRICS (Section 2 & 4)
+  // =========================================================================
+
+  // Helper to calculate exact Quantity-Weighted Order Progress (Section 4 formula)
+  const calculateQuantityWeightedProgress = (order: ProductionOrderWithProducts): number => {
+    if (!order.products || order.products.length === 0) return 0;
+    const totalQty = order.products.reduce((acc, p) => acc + p.quantity, 0);
+    if (totalQty === 0) return 0;
+    const weightedSum = order.products.reduce((acc, p) => acc + (p.quantity * p.progressPercent), 0);
+    return Math.round(weightedSum / totalQty);
+  };
+
+  // Enrich orders with calculated weighted progress
+  const enrichedOrders = useMemo(() => {
+    return productionOrders.map((ord) => ({
+      ...ord,
+      weightedProgress: calculateQuantityWeightedProgress(ord)
+    }));
+  }, [productionOrders]);
+
+  // Section 2: Four Key KPIs (Calculated dynamically)
+  const activeOrdersCount = enrichedOrders.filter(
+    (o) => o.weightedProgress > 0 && o.weightedProgress < 100
+  ).length;
+
+  const atRiskOrdersCount = enrichedOrders.filter(
+    (o) => o.riskStatus === 'at_risk' || o.status === 'at_risk'
+  ).length;
+
+  const completedOrdersCount = enrichedOrders.filter(
+    (o) => o.weightedProgress === 100 || o.status === 'completed'
+  ).length;
+
+  const onTimeDeliveryPercent = useMemo(() => {
+    const totalFinishedOrCommitted = enrichedOrders.filter((o) => o.weightedProgress > 0).length;
+    if (totalFinishedOrCommitted === 0) return 100;
+    const onTimeCount = enrichedOrders.filter(
+      (o) => o.weightedProgress > 0 && o.riskStatus === 'on_track'
+    ).length;
+    return Math.round((onTimeCount / totalFinishedOrCommitted) * 100);
+  }, [enrichedOrders]);
+
+  // Filtered Orders List (Section 3)
+  const filteredOrders = useMemo(() => {
+    return enrichedOrders.filter((o) => {
+      // Filter by status tab
+      if (orderStatusFilter === 'in_production' && (o.weightedProgress === 0 || o.weightedProgress === 100)) return false;
+      if (orderStatusFilter === 'at_risk' && o.riskStatus !== 'at_risk') return false;
+      if (orderStatusFilter === 'completed' && o.weightedProgress !== 100) return false;
+      if (orderStatusFilter === 'not_started' && o.weightedProgress !== 0) return false;
+
+      // Filter by search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesId = o.id.toLowerCase().includes(q);
+        const matchesClient = o.clientName.toLowerCase().includes(q);
+        const matchesProduct = o.products.some((p) => p.name.toLowerCase().includes(q));
+        if (!matchesId && !matchesClient && !matchesProduct) return false;
+      }
+
+      return true;
+    });
+  }, [enrichedOrders, orderStatusFilter, searchQuery]);
+
+  // Active Selected Order
+  const currentOrder = useMemo(() => {
+    return enrichedOrders.find((o) => o.id === selectedOrderId) || enrichedOrders[0];
+  }, [enrichedOrders, selectedOrderId]);
+
+  // Active Selected Product
+  const currentProduct = useMemo(() => {
+    const found = currentOrder.products.find((p) => p.id === selectedProductId);
+    return found || currentOrder.products[0];
+  }, [currentOrder, selectedProductId]);
+
+  // Active Production Stage of the current product
+  const currentActiveStage = useMemo(() => {
+    const inProg = currentProduct.stages.find((s) => s.status === 'in_progress' || s.status === 'delayed');
+    return inProg || currentProduct.stages[currentProduct.stages.length - 1];
+  }, [currentProduct]);
+
+  // Planned vs Actual Performance Metrics for the active stage (Section 6)
+  const dailyTarget = currentActiveStage.dailyTarget || 1000;
+  const dailyActual = currentActiveStage.dailyActual || 750;
+  const dailyVariance = dailyActual - dailyTarget;
+  const dailyAchievementPercent = Math.round((dailyActual / (dailyTarget || 1)) * 100);
+
+  // Top 3 alerts for overview (Section 7)
+  const topAlerts = useMemo(() => {
+    return riskAlerts.slice(0, 3);
+  }, [riskAlerts]);
+
+  // =========================================================================
+  // ACTIONS & STAGE PROGRESSION RULES (Section 8 & 9)
+  // =========================================================================
+
+  // Handle Order Selection
+  const handleSelectOrder = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    const ord = enrichedOrders.find((o) => o.id === orderId);
+    if (ord && ord.products.length > 0) {
+      setSelectedProductId(ord.products[0].id);
+    }
+    if (onSelectOrder) {
+      onSelectOrder(orderId);
+    }
+  };
+
+  // Submit Supervisor Daily Shift Report (Section 8)
+  const handleSubmitShiftReport = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const timestamp = new Date().toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const newReportId = `REP-${100 + shiftReports.length + 1}`;
+
+    const newReport: SupervisorShiftReport = {
+      id: newReportId,
+      orderId: shiftForm.orderId,
+      productId: shiftForm.productId,
+      productName: currentProduct.name,
+      stageName: shiftForm.stageName,
+      machineId: shiftForm.machineId,
+      workersAssigned: Number(shiftForm.workersAssigned),
+      dailyTargetQuantity: Number(shiftForm.dailyTargetQuantity),
+      actualProducedQuantity: Number(shiftForm.actualProducedQuantity),
+      rejectedQuantity: Number(shiftForm.rejectedQuantity),
+      machineDowntimeMinutes: Number(shiftForm.machineDowntimeMinutes),
+      delayReason: shiftForm.delayReason || undefined,
+      remarks: shiftForm.remarks,
+      submittedBy: shiftForm.submittedBy,
+      timestamp
+    };
+
+    // 1. Append immutable audit history
+    setShiftReports((prev) => [newReport, ...prev]);
+
+    // 2. Update the target product's active stage produced & rejected quantities
+    setProductionOrders((prevOrders) =>
+      prevOrders.map((ord) => {
+        if (ord.id === shiftForm.orderId) {
+          const updatedProducts = ord.products.map((prod) => {
+            if (prod.id === shiftForm.productId) {
+              const updatedStages = prod.stages.map((stg) => {
+                if (stg.name === shiftForm.stageName) {
+                  const newProduced = stg.producedQuantity + Number(shiftForm.actualProducedQuantity);
+                  const newRejected = stg.rejectedQuantity + Number(shiftForm.rejectedQuantity);
+                  const isStageComplete = newProduced >= stg.targetQuantity;
+
+                  return {
+                    ...stg,
+                    producedQuantity: newProduced,
+                    rejectedQuantity: newRejected,
+                    remainingQuantity: Math.max(0, stg.targetQuantity - newProduced),
+                    dailyActual: Number(shiftForm.actualProducedQuantity),
+                    status: isStageComplete ? ('completed' as StageStatus) : stg.status
+                  };
+                }
+                return stg;
+              });
+
+              // Recalculate product progress
+              const totalCompletedPieces = updatedStages[updatedStages.length - 1].producedQuantity;
+              const newProgress = Math.min(100, Math.round((totalCompletedPieces / prod.quantity) * 100));
+
+              return {
+                ...prod,
+                completedQuantity: totalCompletedPieces,
+                rejectedQuantity: prod.rejectedQuantity + Number(shiftForm.rejectedQuantity),
+                remainingQuantity: Math.max(0, prod.quantity - totalCompletedPieces),
+                progressPercent: newProgress,
+                stages: updatedStages
+              };
+            }
+            return prod;
+          });
+
+          return {
+            ...ord,
+            products: updatedProducts
+          };
+        }
+        return ord;
+      })
+    );
+
+    showToast(`Shift Report ${newReportId} logged! +${shiftForm.actualProducedQuantity} pcs committed to ${shiftForm.stageName}.`);
+    setShowShiftUpdateModal(false);
+  };
+
+  // Section 9: Logical Stage Progression (Completing a stage and advancing)
+  const handleAdvanceStage = (orderId: string, productId: string, currentStageNumber: number) => {
+    // Stage rule check: Cannot skip stages; Dispatch requires Quality Inspection passed!
+    if (currentStageNumber >= 6) {
+      alert('Product is already in the final Dispatch stage.');
+      return;
+    }
+
+    setProductionOrders((prevOrders) =>
+      prevOrders.map((ord) => {
+        if (ord.id === orderId) {
+          const updatedProducts = ord.products.map((prod) => {
+            if (prod.id === productId) {
+              const updatedStages = prod.stages.map((stg) => {
+                if (stg.stageNumber === currentStageNumber) {
+                  return {
+                    ...stg,
+                    status: 'completed' as StageStatus,
+                    actualCompletionDate: '30 Oct 2026'
+                  };
+                }
+                if (stg.stageNumber === currentStageNumber + 1) {
+                  return {
+                    ...stg,
+                    status: 'in_progress' as StageStatus,
+                    actualStartDate: '30 Oct 2026'
+                  };
+                }
+                return stg;
+              });
+
+              const nextStageName = updatedStages.find((s) => s.stageNumber === currentStageNumber + 1)?.name || prod.currentStage;
+
+              return {
+                ...prod,
+                currentStage: nextStageName,
+                stages: updatedStages
+              };
+            }
+            return prod;
+          });
+
+          return {
+            ...ord,
+            products: updatedProducts
+          };
+        }
+        return ord;
+      })
+    );
+
+    showToast(`Stage ${currentStageNumber} verified & completed! Advanced product to Stage ${currentStageNumber + 1}.`);
+  };
+
+  // Status badge styling helper
+  const getStatusBadge = (status: string, riskStatus?: string) => {
+    if (riskStatus === 'at_risk' || status === 'at_risk') {
+      return { label: 'At Risk', bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' };
+    }
+    if (status === 'completed') {
+      return { label: 'Completed', bg: '#dff1ea', color: '#164e32', border: '#bbf7d0' };
+    }
+    if (status === 'in_production') {
+      return { label: 'In Production', bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' };
+    }
+    return { label: 'Not Started', bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' };
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
-      {/* 1. PAGE HEADER */}
-      <div className="module-header-flat">
+      {/* =========================================================================
+          1. CLEAN PAGE HEADER
+          ========================================================================= */}
+      <div className="module-header-flat" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--c-text-primary)' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0a0d10', letterSpacing: '-0.02em', margin: 0 }}>
             Production Tracking
           </h1>
+          <p style={{ fontSize: 11.5, color: '#64748b', margin: '3px 0 0' }}>
+            Multi-product order progress, 6-stage manufacturing lifecycle, and daily shift performance
+          </p>
+        </div>
+
+        {/* Global Module Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setShowShiftHistoryModal(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: 9999,
+              padding: '6px 13px',
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#334155',
+              cursor: 'pointer'
+            }}
+          >
+            <History size={13} color="#164e32" />
+            Shift Log History
+          </button>
+
+          <button
+            className="admin-btn-primary"
+            onClick={() => {
+              setShiftForm((prev) => ({
+                ...prev,
+                orderId: currentOrder.id,
+                productId: currentProduct.id,
+                stageName: currentActiveStage.name
+              }));
+              setShowShiftUpdateModal(true);
+            }}
+            style={{ padding: '6px 14px', fontSize: 11, borderRadius: 9999 }}
+          >
+            <Plus size={13} />
+            Log Shift Update
+          </button>
         </div>
       </div>
 
-      {/* 2. TOP 4 KPI CARDS */}
+      {/* =========================================================================
+          2. FOUR DYNAMIC PRODUCTION KPI CARDS (Section 2)
+          ========================================================================= */}
       <div className="kpi-strip-flat">
+        {/* KPI 1: Active Orders */}
         <div className="kpi-cell-flat">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-              In Production
-            </div>
+            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Active Orders</span>
             <div style={{
-              width: 30,
-              height: 30,
+              width: 28,
+              height: 28,
               borderRadius: 9999,
               background: '#e0f2fe',
               color: '#0369a1',
@@ -191,23 +1036,22 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              <Activity size={15} />
+              <Activity size={14} />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>14</span>
-            <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>&uarr; 6%</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>{activeOrdersCount}</span>
+            <span style={{ fontSize: 10.5, color: '#0369a1', fontWeight: 700 }}>In manufacturing</span>
           </div>
         </div>
 
-        <div className="kpi-cell-flat">
+        {/* KPI 2: At-Risk Orders */}
+        <div className="kpi-cell-flat" style={{ borderLeft: atRiskOrdersCount > 0 ? '3px solid #dc2626' : '1px solid #e5e9ee' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-              At Risk
-            </div>
+            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>At-Risk Orders</span>
             <div style={{
-              width: 30,
-              height: 30,
+              width: 28,
+              height: 28,
               borderRadius: 9999,
               background: '#fee2e2',
               color: '#dc2626',
@@ -215,47 +1059,45 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              <Clock size={15} />
+              <AlertTriangle size={14} />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#dc2626' }}>3</span>
-            <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>&uarr; 1%</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#dc2626' }}>{atRiskOrdersCount}</span>
+            <span style={{ fontSize: 10.5, color: '#dc2626', fontWeight: 700 }}>May miss deadline</span>
           </div>
         </div>
 
+        {/* KPI 3: Completed Orders */}
         <div className="kpi-cell-flat">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-              Completed
-            </div>
+            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Completed Orders</span>
             <div style={{
-              width: 30,
-              height: 30,
+              width: 28,
+              height: 28,
               borderRadius: 9999,
               background: '#dff1ea',
-              color: '#1e473d',
+              color: '#164e32',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              <CheckCircle2 size={15} />
+              <CheckCircle2 size={14} />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>22</span>
-            <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>&uarr; 8%</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#164e32' }}>{completedOrdersCount}</span>
+            <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 700 }}>100% dispatched</span>
           </div>
         </div>
 
+        {/* KPI 4: On-Time Delivery */}
         <div className="kpi-cell-flat">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-              On Time Delivery
-            </div>
+            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>On-Time Delivery</span>
             <div style={{
-              width: 30,
-              height: 30,
+              width: 28,
+              height: 28,
               borderRadius: 9999,
               background: '#ede9fe',
               color: '#5b21b6',
@@ -263,21 +1105,23 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              <Calendar size={15} />
+              <Clock size={14} />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>92%</span>
-            <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>&uarr; 2%</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>{onTimeDeliveryPercent}%</span>
+            <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 700 }}>Target: 95%</span>
           </div>
         </div>
       </div>
 
-      {/* 3. TWO-COLUMN MAIN CONTENT */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) minmax(320px, 0.95fr)', gap: 16, flex: 1, minHeight: 0 }}>
-        {/* Left Column: Production Orders Table & Order Flow Pipeline */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', paddingRight: 4 }}>
-          {/* Production Orders Table */}
+      {/* =========================================================================
+          3. MAIN TWO-COLUMN CONTENT GRID (Section 10)
+          ========================================================================= */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) minmax(320px, 0.95fr)', gap: 16 }}>
+
+        {/* LEFT COLUMN: Production Orders List with Filters & Search */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{
             background: '#ffffff',
             borderRadius: 24,
@@ -287,112 +1131,180 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
             flexDirection: 'column',
             gap: 12
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Header with Search and Filter Tabs */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Layers size={16} color="#111315" />
-                <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10' }}>
+                <Layers size={16} color="#164e32" />
+                <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
                   Production Orders
                 </h3>
               </div>
 
-              <select
-                className="admin-form-select"
-                value={stageFilter}
-                onChange={(e) => setStageFilter(e.target.value)}
-              >
-                <option value="all">All Orders</option>
-                <option value="in_production">In Production</option>
-                <option value="at_risk">At Risk</option>
-                <option value="completed">Completed</option>
-              </select>
+              {/* Search & Filter Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#f8faf9',
+                  border: '1px solid #edf2ef',
+                  borderRadius: 9999,
+                  padding: '3px 8px',
+                  fontSize: 10.5
+                }}>
+                  <Search size={12} color="#94a3b8" />
+                  <input
+                    type="text"
+                    placeholder="Search order, client, product..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 10.5, width: 140 }}
+                  />
+                </div>
+
+                {/* Filter Pills */}
+                <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', padding: 2, borderRadius: 8 }}>
+                  {['all', 'in_production', 'at_risk', 'completed', 'not_started'].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setOrderStatusFilter(st)}
+                      style={{
+                        background: orderStatusFilter === st ? '#ffffff' : 'transparent',
+                        color: orderStatusFilter === st ? '#164e32' : '#64748b',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '3px 8px',
+                        fontSize: 10,
+                        fontWeight: orderStatusFilter === st ? 700 : 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {st === 'all' ? 'All' : st === 'in_production' ? 'In Prod' : st === 'at_risk' ? 'At Risk' : st === 'completed' ? 'Done' : 'Pending'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
+            {/* Production Orders Table */}
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
                 <thead>
                   <tr style={{ color: '#64748b', borderBottom: '1px solid #edf1f5', textAlign: 'left' }}>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Order ID</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Product</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600, width: 90 }}>Progress</th>
+                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Order ID & Client</th>
+                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Products</th>
+                    <th style={{ padding: '8px 6px', fontWeight: 600, width: 105 }}>Weighted Progress</th>
                     <th style={{ padding: '8px 6px', fontWeight: 600 }}>Current Stage</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Status</th>
                     <th style={{ padding: '8px 6px', fontWeight: 600 }}>Deadline</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Status</th>
+                    <th style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600 }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredOrders.map((o) => {
-                    const isSelected = o.id === selectedOrderId;
-                    const progress = getOrderProgress(o.id);
+                  {filteredOrders.map((ord) => {
+                    const isSelected = ord.id === selectedOrderId;
+                    const badge = getStatusBadge(ord.status, ord.riskStatus);
+                    const isAtRisk = ord.riskStatus === 'at_risk';
 
                     return (
                       <tr
-                        key={o.id}
-                        onClick={() => {
-                          setSelectedOrderId(o.id);
-                          onSelectOrder(o.id);
-                        }}
+                        key={ord.id}
+                        onClick={() => handleSelectOrder(ord.id)}
                         style={{
-                          background: isSelected ? '#f0fdf9' : 'transparent',
+                          borderBottom: '1px solid #f8fafc',
                           cursor: 'pointer',
-                          borderBottom: '1px solid #edf1f5',
-                          transition: 'background 0.15s'
+                          background: isSelected ? '#f0fdf4' : 'transparent',
+                          transition: 'background 0.12s ease'
                         }}
                       >
-                        <td style={{ padding: '10px 6px', fontWeight: 800, color: isSelected ? '#1e473d' : '#0a0d10' }}>
-                          {o.id}
+                        <td style={{ padding: '10px 6px' }}>
+                          <div style={{ fontWeight: 800, color: isSelected ? '#164e32' : '#0a0d10' }}>
+                            {ord.id}
+                          </div>
+                          <div style={{ fontSize: 10, color: '#64748b' }}>
+                            {ord.clientName}
+                          </div>
                         </td>
-                        <td style={{ padding: '10px 6px', color: '#0a0d10', fontWeight: 600 }}>
-                          {o.productName}
+
+                        <td style={{ padding: '10px 6px' }}>
+                          <div style={{ fontWeight: 600, color: '#0a0d10' }}>
+                            {ord.products.length} Design{ord.products.length > 1 ? 's' : ''} ({ord.totalQuantity.toLocaleString()} pcs)
+                          </div>
+                          <div style={{ fontSize: 9.5, color: '#94a3b8' }}>
+                            {ord.products.map((p) => p.name.split('-')[0].trim()).slice(0, 2).join(', ')}
+                            {ord.products.length > 2 ? '...' : ''}
+                          </div>
                         </td>
+
                         <td style={{ padding: '10px 6px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ flex: 1, height: 5, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
+                            <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
                               <div
                                 style={{
-                                  width: `${progress}%`,
+                                  width: `${ord.weightedProgress}%`,
                                   height: '100%',
-                                  background: o.id === 'TX-1025' ? '#f59e0b' : (progress === 100 || progress === 85 ? '#10b981' : '#0284c7'),
+                                  background: isAtRisk ? '#f59e0b' : ord.weightedProgress === 100 ? '#16a34a' : '#164e32',
                                   borderRadius: 9999
                                 }}
                               />
                             </div>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#475569', minWidth: 26 }}>
-                              {progress}%
+                            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#334155', minWidth: 28 }}>
+                              {ord.weightedProgress}%
                             </span>
                           </div>
                         </td>
+
                         <td style={{ padding: '10px 6px', color: '#475569' }}>
-                          {o.currentPhase}
+                          {ord.products[0]?.currentStage || 'Yarn Inward'}
                         </td>
+
                         <td style={{ padding: '10px 6px' }}>
-                          {getOrderStatusBadge(o.id)}
+                          <div style={{ color: '#0a0d10', fontWeight: 600 }}>
+                            {ord.committedDeliveryDate.replace(' 2026', '')}
+                          </div>
+                          {isAtRisk && (
+                            <div style={{ fontSize: 9, color: '#dc2626', fontWeight: 700 }}>
+                              Forecast: {ord.forecastDeliveryDate.replace(' 2026', '')}
+                            </div>
+                          )}
                         </td>
-                        <td style={{ padding: '10px 6px', color: '#64748b' }}>
-                          {o.deadlineDate.replace(' 2026', '')}
+
+                        <td style={{ padding: '10px 6px' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                            padding: '2px 7px',
+                            borderRadius: 9999,
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            background: badge.bg,
+                            color: badge.color,
+                            border: `1px solid ${badge.border}`
+                          }}>
+                            {badge.label}
+                          </span>
                         </td>
+
                         <td style={{ padding: '10px 6px', textAlign: 'right' }}>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedOrderId(o.id);
-                              onSelectOrder(o.id);
+                              handleSelectOrder(ord.id);
+                              setShowTimelineModal(true);
                             }}
                             style={{
                               background: '#ffffff',
                               border: '1px solid #e2e8f0',
                               borderRadius: 9999,
-                              padding: '3px 10px',
-                              color: '#0a0d10',
-                              fontSize: 10.5,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 2
+                              padding: '3px 8px',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: '#164e32',
+                              cursor: 'pointer'
                             }}
                           >
-                            View <ChevronRight size={12} />
+                            Timeline &rarr;
                           </button>
                         </td>
                       </tr>
@@ -402,242 +1314,12 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
               </table>
             </div>
           </div>
-
-          {/* Order Flow Pipeline Stepper */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Activity size={16} color="#111315" />
-              <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0a0d10' }}>
-                Order Flow &bull; {selectedOrder.id} ({selectedOrder.productName})
-              </h4>
-            </div>
-
-            {/* Visual Stepper */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              position: 'relative',
-              padding: '6px 20px 0 20px'
-            }}>
-              {/* Submitted Step */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 2 }}>
-                <div style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: '#dff1ea',
-                  color: '#1e473d',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <Check size={14} />
-                </div>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: '#0a0d10' }}>Submitted</span>
-                <span style={{ fontSize: 9.5, color: '#94a3b8' }}>28 Oct</span>
-              </div>
-
-              {/* Connector 1 */}
-              <div style={{ flex: 1, height: 2, background: '#10b981', margin: '0 -2px', marginTop: -18 }} />
-
-              {/* Feasibility Step */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 2 }}>
-                <div style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: '#dff1ea',
-                  color: '#1e473d',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <Check size={14} />
-                </div>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: '#0a0d10' }}>Feasibility</span>
-                <span style={{ fontSize: 9.5, color: '#94a3b8' }}>29 Oct</span>
-              </div>
-
-              {/* Connector 2 */}
-              <div style={{ flex: 1, height: 2, background: '#10b981', margin: '0 -2px', marginTop: -18 }} />
-
-              {/* Quotation Step */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 2 }}>
-                <div style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: '#dff1ea',
-                  color: '#1e473d',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <Check size={14} />
-                </div>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: '#0a0d10' }}>Quotation</span>
-                <span style={{ fontSize: 9.5, color: '#94a3b8' }}>30 Oct</span>
-              </div>
-
-              {/* Connector 3 */}
-              <div style={{ flex: 1, height: 2, background: '#111315', margin: '0 -2px', marginTop: -18 }} />
-
-              {/* Production Step (Active) */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 2 }}>
-                <div style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: '50%',
-                  background: '#111315',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 0 4px rgba(17, 19, 21, 0.15)'
-                }}>
-                  <Layers size={14} />
-                </div>
-                <span style={{ fontSize: 10.5, fontWeight: 800, color: '#111315' }}>Production</span>
-                <span style={{ fontSize: 9.5, color: '#1e473d', fontWeight: 700 }}>In Progress</span>
-              </div>
-
-              {/* Connector 4 */}
-              <div style={{ flex: 1, height: 2, background: '#e2e8f0', margin: '0 -2px', marginTop: -18 }} />
-
-              {/* Delivery Step */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, zIndex: 2 }}>
-                <div style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: '#f1f5f9',
-                  color: '#94a3b8',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <Truck size={14} />
-                </div>
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: '#94a3b8' }}>Delivery</span>
-                <span style={{ fontSize: 9.5, color: '#94a3b8' }}>Pending</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 5 Stages Detail List */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0a0d10' }}>
-              Stage Progress & Operations Checklist
-            </h4>
-
-            {stages.map((stage, idx) => {
-              const isCompleted = stage.status === 'completed';
-              const isInProgress = stage.status === 'in_progress';
-              const isAtRisk = stage.status === 'at_risk';
-
-              return (
-                <div
-                  key={stage.id}
-                  style={{
-                    borderBottom: '1px solid #edf1f5',
-                    padding: '10px 0',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: '50%',
-                        background: isCompleted ? '#dff1ea' : (isInProgress ? '#111315' : (isAtRisk ? '#fef3c7' : '#f1f5f9')),
-                        color: isCompleted ? '#1e473d' : (isInProgress ? '#ffffff' : (isAtRisk ? '#b45309' : '#94a3b8')),
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 10,
-                        fontWeight: 800
-                      }}>
-                        {isCompleted ? <Check size={12} /> : idx + 1}
-                      </span>
-                      <strong style={{ fontSize: 12.5, color: '#0a0d10' }}>{stage.name}</strong>
-                      <span style={{ fontSize: 10, color: '#64748b' }}>&bull; {stage.department}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: isAtRisk ? '#b45309' : (isCompleted ? '#16a34a' : '#0369a1') }}>
-                        {stage.progressPercent}% ({stage.produced.toLocaleString()} / {stage.target.toLocaleString()} pcs)
-                      </span>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        padding: '2px 8px',
-                        borderRadius: 9999,
-                        fontSize: 9,
-                        fontWeight: 700,
-                        background: isCompleted ? '#dcfce7' : (isAtRisk ? '#fef3c7' : (isInProgress ? '#e0f2fe' : '#f1f5f9')),
-                        color: isCompleted ? '#15803d' : (isAtRisk ? '#b45309' : (isInProgress ? '#0369a1' : '#64748b'))
-                      }}>
-                        {stage.status.replace('_', ' ').toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ width: '100%', height: 4, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${stage.progressPercent}%`,
-                        height: '100%',
-                        background: isAtRisk ? '#f59e0b' : (isCompleted ? '#10b981' : '#111315'),
-                        borderRadius: 9999
-                      }}
-                    />
-                  </div>
-
-                  {isAtRisk && (
-                    <div style={{ borderLeft: '3px solid #d97706', padding: '6px 10px', fontSize: 11, background: '#fffbeb', borderRadius: '0 8px 8px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <div style={{ color: '#b45309', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <AlertTriangle size={13} color="#d97706" />
-                        <span>Delay Alert: {stage.delayReason}</span>
-                      </div>
-                      <div style={{ color: '#92400e' }}>
-                        <strong>Action:</strong> {stage.correctiveAction}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         </div>
 
-        {/* Right Column: Order Details, Donut Chart, Supervisor, & Alerts */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-          overflowY: 'auto'
-        }}>
-          {/* Order Details Card */}
+        {/* RIGHT COLUMN: Order Summary, Multi-Product Breakdown, Stage Performance, Alerts */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* CARD 1: ORDER SUMMARY & MULTI-PRODUCT LIST (Section 4) */}
           <div style={{
             background: '#ffffff',
             borderRadius: 24,
@@ -647,101 +1329,129 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
             flexDirection: 'column',
             gap: 12
           }}>
+            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>
-                  Order Details
-                </div>
-                <h2 style={{ fontSize: 16, fontWeight: 800, color: '#0a0d10', marginTop: 2 }}>
-                  {selectedOrder.id}
-                </h2>
-                <div style={{ fontSize: 11, color: '#64748b' }}>
-                  {selectedOrder.productName} &bull; {selectedOrder.clientName}
+                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>
+                  Selected Order Workspace
+                </span>
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0a0d10', margin: '2px 0 0' }}>
+                  {currentOrder.id} &bull; {currentOrder.clientName}
+                </h3>
+                <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                  {currentOrder.productCategory} &bull; Total: <strong>{currentOrder.totalQuantity.toLocaleString()} pcs</strong>
                 </div>
               </div>
 
-              <span style={{ background: '#dff1ea', color: '#1e473d', padding: '3px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700 }}>
-                &bull; On Track
-              </span>
-            </div>
-
-            {/* Donut Chart and Metadata */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '6px 0' }}>
-              {/* SVG Donut */}
-              <div style={{ position: 'relative', width: 80, height: 80, flexShrink: 0 }}>
-                <svg width="80" height="80" viewBox="0 0 80 80">
-                  <circle cx="40" cy="40" r="32" stroke="#f1f5f9" strokeWidth="8" fill="none" />
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="32"
-                    stroke="#1e473d"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeDasharray={`${(65 / 100) * (2 * Math.PI * 32)} ${2 * Math.PI * 32}`}
-                    strokeDashoffset={0}
-                    strokeLinecap="round"
-                    transform="rotate(-90 40 40)"
-                  />
-                </svg>
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center'
+              <div style={{ textAlign: 'right' }}>
+                <span style={{
+                  background: currentOrder.riskStatus === 'at_risk' ? '#fee2e2' : '#dff1ea',
+                  color: currentOrder.riskStatus === 'at_risk' ? '#dc2626' : '#164e32',
+                  padding: '2px 8px',
+                  borderRadius: 9999,
+                  fontSize: 10,
+                  fontWeight: 800
                 }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10' }}>65%</span>
-                  <span style={{ fontSize: 8.5, color: '#94a3b8' }}>Complete</span>
-                </div>
-              </div>
-
-              {/* Metadata */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Calendar size={14} color="#64748b" />
-                  <div>
-                    <span style={{ fontSize: 9.5, color: '#94a3b8', display: 'block' }}>Deadline</span>
-                    <strong style={{ color: '#0a0d10' }}>{selectedOrder.deadlineDate}</strong>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <FileCheck2 size={14} color="#64748b" />
-                  <div>
-                    <span style={{ fontSize: 9.5, color: '#94a3b8', display: 'block' }}>Supervisor</span>
-                    <strong style={{ color: '#0a0d10' }}>{selectedOrder.assignedSupervisorName || 'Ramesh Kumar'}</strong>
-                  </div>
+                  {currentOrder.riskStatus === 'at_risk' ? 'At Risk' : 'On Track'}
+                </span>
+                <div style={{ fontSize: 9.5, color: '#64748b', marginTop: 2 }}>
+                  Committed: {currentOrder.committedDeliveryDate}
                 </div>
               </div>
             </div>
 
-            {/* Key Info Banner */}
+            {/* Quantity-Weighted Progress Bar */}
             <div style={{
-              background: '#dff1ea',
-              border: '1px solid #c6e5db',
-              borderRadius: 16,
-              padding: '10px 12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 14,
+              padding: '10px 12px'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1e473d', fontWeight: 700, fontSize: 11 }}>
-                <CheckCircle2 size={14} color="#1e473d" />
-                <span>Key Info</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                <span>Quantity-Weighted Progress:</span>
+                <span style={{ color: currentOrder.riskStatus === 'at_risk' ? '#b45309' : '#164e32' }}>
+                  {currentOrder.weightedProgress}% Complete
+                </span>
               </div>
-              <p style={{ fontSize: 10.5, color: '#1e473d', margin: 0 }}>
-                On track to meet deadline. 3,250 of 5,000 pcs completed across cutting and stitching.
-              </p>
+              <div style={{ height: 6, width: '100%', background: '#e2e8f0', borderRadius: 9999, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${currentOrder.weightedProgress}%`,
+                    height: '100%',
+                    background: currentOrder.riskStatus === 'at_risk' ? '#f59e0b' : '#164e32',
+                    borderRadius: 9999
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, color: '#64748b', marginTop: 4 }}>
+                <span>Supervisor: {currentOrder.assignedSupervisorName}</span>
+                <span>Forecast Delivery: <strong>{currentOrder.forecastDeliveryDate}</strong></span>
+              </div>
             </div>
+
+            {/* Multi-Product Independent Progress List (Section 4) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#0a0d10' }}>
+                Products / Designs in this Order ({currentOrder.products.length}):
+              </div>
+
+              {currentOrder.products.map((prod) => {
+                const isSelected = prod.id === selectedProductId;
+                return (
+                  <div
+                    key={prod.id}
+                    onClick={() => setSelectedProductId(prod.id)}
+                    style={{
+                      border: isSelected ? '1.5px solid #164e32' : '1px solid #edf1f5',
+                      background: isSelected ? '#f8fdfa' : '#ffffff',
+                      borderRadius: 12,
+                      padding: '8px 10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontWeight: 700, fontSize: 11, color: '#0a0d10' }}>
+                        {prod.name} <span style={{ fontSize: 9.5, color: '#94a3b8' }}>({prod.designCode})</span>
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#164e32' }}>
+                        {prod.progressPercent}%
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, color: '#64748b' }}>
+                      <span>Stage: <strong>{prod.currentStage}</strong></span>
+                      <span>Produced: {prod.completedQuantity.toLocaleString()} / {prod.quantity.toLocaleString()} pcs</span>
+                    </div>
+
+                    <div style={{ height: 4, width: '100%', background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${prod.progressPercent}%`,
+                          height: '100%',
+                          background: prod.riskStatus === 'at_risk' ? '#f59e0b' : '#164e32'
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Action to open 6-stage lifecycle modal */}
+            <button
+              onClick={() => setShowTimelineModal(true)}
+              className="admin-btn-primary"
+              style={{ width: '100%', padding: '8px 12px', fontSize: 11, justifyContent: 'center' }}
+            >
+              <span>Inspect 6-Stage Timeline ({currentProduct.designCode})</span>
+              <ChevronRight size={14} />
+            </button>
           </div>
 
-          {/* Alerts Box */}
+          {/* CARD 2: PLANNED VS ACTUAL PERFORMANCE (Section 6) */}
           <div style={{
             background: '#ffffff',
             borderRadius: 24,
@@ -749,74 +1459,669 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
             padding: 18,
             display: 'flex',
             flexDirection: 'column',
-            gap: 12
+            gap: 10
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={16} color="#111315" />
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0a0d10' }}>
-                  Alerts
-                </h4>
+                <SlidersHorizontal size={15} color="#164e32" />
+                <h3 style={{ fontSize: 13.5, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
+                  Planned vs Actual Shift Performance
+                </h3>
               </div>
-              <span style={{ fontSize: 11, color: '#1e473d', fontWeight: 700, cursor: 'pointer' }}>
-                View All &rarr;
+              <span style={{ fontSize: 10, color: '#64748b' }}>
+                Stage: {currentActiveStage.name}
               </span>
             </div>
 
+            {/* Target vs Actual Grid */}
             <div style={{
-              background: '#fffbeb',
-              borderLeft: '3px solid #f59e0b',
-              padding: '8px 10px',
-              borderRadius: '0 8px 8px 0',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 8,
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 14,
+              padding: '10px 12px',
+              textAlign: 'center'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e' }}>
-                  Material shortage: Cotton Fabric
-                </span>
-                <span style={{ fontSize: 9.5, color: '#94a3b8' }}>2h ago</span>
+              <div>
+                <div style={{ fontSize: 9.5, color: '#64748b' }}>Daily Target</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', marginTop: 2 }}>
+                  {dailyTarget.toLocaleString()} pcs
+                </div>
               </div>
-              <span style={{ fontSize: 10, color: '#b45309' }}>
-                600 m required for finishing. PO-1001 queued for Sri Textiles.
-              </span>
+
+              <div>
+                <div style={{ fontSize: 9.5, color: '#64748b' }}>Actual Output</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: dailyAchievementPercent >= 90 ? '#16a34a' : '#b45309', marginTop: 2 }}>
+                  {dailyActual.toLocaleString()} pcs
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 9.5, color: '#64748b' }}>Achievement</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: dailyAchievementPercent >= 90 ? '#16a34a' : '#dc2626', marginTop: 2 }}>
+                  {dailyAchievementPercent}%
+                </div>
+              </div>
             </div>
 
-            <div style={{
-              background: '#ede9fe',
-              borderLeft: '3px solid #7c3aed',
-              padding: '8px 10px',
-              borderRadius: '0 8px 8px 0',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#5b21b6' }}>
-                  Price increase: Dyeing Chemicals
-                </span>
-                <span style={{ fontSize: 9.5, color: '#94a3b8' }}>4h ago</span>
-              </div>
-              <span style={{ fontSize: 10, color: '#6d28d9' }}>
-                +8% this week on spot exchange. Proposed revision prepared.
+            {/* Variance indicator */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
+              <span>
+                Daily Variance: <strong style={{ color: dailyVariance >= 0 ? '#16a34a' : '#dc2626' }}>
+                  {dailyVariance >= 0 ? `+${dailyVariance}` : dailyVariance} pcs
+                </strong>
               </span>
+              <span>
+                Rejected: <strong style={{ color: '#dc2626' }}>{currentActiveStage.rejectedQuantity} pcs</strong>
+              </span>
+              <span>Machine: {currentActiveStage.assignedMachine.split(' ')[0]}</span>
             </div>
+          </div>
 
-            {/* Action Button */}
-            <div style={{ marginTop: 'auto', paddingTop: 6 }}>
+          {/* CARD 3: PRODUCTION RISK ALERTS (Top 3 - Section 7) */}
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 24,
+            border: '1px solid #e5e9ee',
+            padding: 18,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={15} color="#dc2626" />
+                <h3 style={{ fontSize: 13.5, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
+                  Production Risk Alerts ({riskAlerts.length})
+                </h3>
+              </div>
               <button
-                className="admin-btn-primary"
-                style={{ width: '100%', fontSize: 11.5, padding: '9px 12px', justifyContent: 'center' }}
-                onClick={() => onOpenOrderModal(selectedOrder)}
+                onClick={() => setShowAllAlertsModal(true)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#164e32',
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: 0
+                }}
               >
-                <Eye size={14} />
-                <span>Explore Order Details & Timeline</span>
+                View All &rarr;
               </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {topAlerts.map((alt) => (
+                <div
+                  key={alt.id}
+                  style={{
+                    background: alt.severity === 'critical' ? '#fef2f2' : '#fffbeb',
+                    border: `1px solid ${alt.severity === 'critical' ? '#fecaca' : '#fde68a'}`,
+                    borderRadius: 12,
+                    padding: '8px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', color: alt.severity === 'critical' ? '#dc2626' : '#b45309' }}>
+                      {alt.alertType.replace(/_/g, ' ')} &bull; {alt.affectedOrderId}
+                    </span>
+                    <span style={{ fontSize: 9, color: '#94a3b8' }}>{alt.detectedTime}</span>
+                  </div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: '#1e293b' }}>
+                    {alt.reason}
+                  </div>
+                  <div style={{ fontSize: 9.5, color: '#475569' }}>
+                    Action: <strong>{alt.suggestedAction}</strong>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
+
+      {/* =========================================================================
+          DETAIL MODAL 1: SIX-STAGE PRODUCTION TIMELINE WORKSPACE (Section 5 & 9)
+          ========================================================================= */}
+      {showTimelineModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: 880, borderRadius: 28, padding: 24, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <div>
+                <h2 className="modal-title" style={{ fontSize: 16, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
+                  6-Stage Production Lifecycle &bull; {currentProduct.name} ({currentProduct.designCode})
+                </h2>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  Order: <strong>{currentOrder.id}</strong> ({currentOrder.clientName}) &bull; Target: <strong>{currentProduct.quantity.toLocaleString()} pieces</strong>
+                </div>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowTimelineModal(false)}>
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Stepper Summary */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(6, 1fr)',
+              gap: 8,
+              marginTop: 14,
+              marginBottom: 16,
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 16,
+              padding: '12px 14px'
+            }}>
+              {currentProduct.stages.map((stg) => {
+                const isComplete = stg.status === 'completed';
+                const isInProg = stg.status === 'in_progress' || stg.status === 'delayed';
+
+                return (
+                  <div key={stg.id} style={{ textAlign: 'center' }}>
+                    <div style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: '50%',
+                      background: isComplete ? '#dff1ea' : isInProg ? '#164e32' : '#f1f5f9',
+                      color: isComplete ? '#164e32' : isInProg ? '#ffffff' : '#94a3b8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      margin: '0 auto 4px'
+                    }}>
+                      {isComplete ? <Check size={13} /> : stg.stageNumber}
+                    </div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#0a0d10' }}>
+                      {stg.name}
+                    </div>
+                    <div style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      color: isComplete ? '#16a34a' : isInProg ? '#0369a1' : '#94a3b8',
+                      marginTop: 2
+                    }}>
+                      {stg.status}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 6 Stage Operational Cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {currentProduct.stages.map((stg) => {
+                const isComplete = stg.status === 'completed';
+                const isInProg = stg.status === 'in_progress' || stg.status === 'delayed';
+
+                return (
+                  <div
+                    key={stg.id}
+                    style={{
+                      border: isInProg ? '1.5px solid #164e32' : '1px solid #e2e8f0',
+                      borderRadius: 16,
+                      background: isInProg ? '#fafdfb' : '#ffffff',
+                      padding: '12px 16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          background: isComplete ? '#dff1ea' : isInProg ? '#164e32' : '#f1f5f9',
+                          color: isComplete ? '#164e32' : isInProg ? '#ffffff' : '#94a3b8',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 10.5,
+                          fontWeight: 800
+                        }}>
+                          {isComplete ? <Check size={12} /> : stg.stageNumber}
+                        </span>
+                        <strong style={{ fontSize: 12.5, color: '#0a0d10' }}>
+                          Stage {stg.stageNumber}: {stg.name}
+                        </strong>
+                        <span style={{ fontSize: 10, color: '#64748b' }}>&bull; {stg.department}</span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#0a0d10' }}>
+                          {stg.producedQuantity.toLocaleString()} / {stg.targetQuantity.toLocaleString()} pcs
+                        </span>
+
+                        {isInProg && (
+                          <button
+                            onClick={() => handleAdvanceStage(currentOrder.id, currentProduct.id, stg.stageNumber)}
+                            style={{
+                              background: '#164e32',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: 9999,
+                              padding: '3px 10px',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Verify & Advance Stage &rarr;
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Operational Details Grid */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: 8,
+                      background: '#f8fafc',
+                      borderRadius: 10,
+                      padding: '6px 10px',
+                      fontSize: 10.5
+                    }}>
+                      <div>
+                        <span style={{ color: '#64748b' }}>Machine: </span>
+                        <strong>{stg.assignedMachine.split(' ')[0]}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b' }}>Supervisor: </span>
+                        <strong>{stg.assignedSupervisor.split(' ')[0]}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b' }}>Rejected: </span>
+                        <strong style={{ color: stg.rejectedQuantity > 0 ? '#dc2626' : '#64748b' }}>
+                          {stg.rejectedQuantity} pcs
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b' }}>Daily Pace: </span>
+                        <strong>{stg.dailyActual} / {stg.dailyTarget} pcs</strong>
+                      </div>
+                    </div>
+
+                    {stg.delayReason && (
+                      <div style={{
+                        background: '#fffbeb',
+                        borderLeft: '3px solid #f59e0b',
+                        padding: '6px 10px',
+                        fontSize: 10.5,
+                        color: '#92400e',
+                        borderRadius: '0 8px 8px 0'
+                      }}>
+                        <strong>Delay Warning:</strong> {stg.delayReason} &bull; <em>Recovery: {stg.recoveryAction}</em>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          DETAIL MODAL 2: LOG SUPERVISOR SHIFT UPDATE (Section 8)
+          ========================================================================= */}
+      {showShiftUpdateModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: 520, borderRadius: 28, padding: 24 }}>
+            <div className="modal-header">
+              <div>
+                <h2 className="modal-title" style={{ fontSize: 16, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
+                  Log Daily Shift Production Update
+                </h2>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  Appends to immutable shift ledger. Does not overwrite past production history.
+                </div>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowShiftUpdateModal(false)}>
+                <X size={15} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitShiftReport} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
+              {/* Order & Product Selection */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#0a0d10', display: 'block', marginBottom: 4 }}>
+                    Order
+                  </label>
+                  <select
+                    className="admin-form-input"
+                    value={shiftForm.orderId}
+                    onChange={(e) => {
+                      const selOrd = productionOrders.find((o) => o.id === e.target.value);
+                      setShiftForm((prev) => ({
+                        ...prev,
+                        orderId: e.target.value,
+                        productId: selOrd?.products[0]?.id || prev.productId
+                      }));
+                    }}
+                  >
+                    {productionOrders.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.id} ({o.clientName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#0a0d10', display: 'block', marginBottom: 4 }}>
+                    Product / Design
+                  </label>
+                  <select
+                    className="admin-form-input"
+                    value={shiftForm.productId}
+                    onChange={(e) => setShiftForm({ ...shiftForm, productId: e.target.value })}
+                  >
+                    {currentOrder.products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.designCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Stage & Machine */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#0a0d10', display: 'block', marginBottom: 4 }}>
+                    Production Stage
+                  </label>
+                  <select
+                    className="admin-form-input"
+                    value={shiftForm.stageName}
+                    onChange={(e) => setShiftForm({ ...shiftForm, stageName: e.target.value })}
+                  >
+                    <option value="Yarn Inward">1. Yarn Inward</option>
+                    <option value="Warping & Sizing">2. Warping & Sizing</option>
+                    <option value="Loom Weaving">3. Loom Weaving</option>
+                    <option value="Dyeing & Finishing">4. Dyeing & Finishing</option>
+                    <option value="Quality Inspection">5. Quality Inspection</option>
+                    <option value="Dispatch">6. Dispatch</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#0a0d10', display: 'block', marginBottom: 4 }}>
+                    Machine Unit
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    value={shiftForm.machineId}
+                    onChange={(e) => setShiftForm({ ...shiftForm, machineId: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Produced, Rejected, Target */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 14,
+                padding: '10px 12px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: 8
+              }}>
+                <div>
+                  <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2 }}>Daily Target</label>
+                  <input
+                    type="number"
+                    className="admin-form-input"
+                    value={shiftForm.dailyTargetQuantity}
+                    onChange={(e) => setShiftForm({ ...shiftForm, dailyTargetQuantity: +e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 10, color: '#164e32', fontWeight: 700, display: 'block', marginBottom: 2 }}>Produced Output</label>
+                  <input
+                    type="number"
+                    className="admin-form-input"
+                    style={{ border: '2px solid #bbf7d0', background: '#f0fdf4' }}
+                    value={shiftForm.actualProducedQuantity}
+                    onChange={(e) => setShiftForm({ ...shiftForm, actualProducedQuantity: +e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 10, color: '#dc2626', fontWeight: 700, display: 'block', marginBottom: 2 }}>Rejected</label>
+                  <input
+                    type="number"
+                    className="admin-form-input"
+                    style={{ border: '1px solid #fecaca' }}
+                    value={shiftForm.rejectedQuantity}
+                    onChange={(e) => setShiftForm({ ...shiftForm, rejectedQuantity: +e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Supervisor & Downtime */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#0a0d10', display: 'block', marginBottom: 4 }}>
+                    Supervisor Submitter
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    value={shiftForm.submittedBy}
+                    onChange={(e) => setShiftForm({ ...shiftForm, submittedBy: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#0a0d10', display: 'block', marginBottom: 4 }}>
+                    Downtime (Mins)
+                  </label>
+                  <input
+                    type="number"
+                    className="admin-form-input"
+                    value={shiftForm.machineDowntimeMinutes}
+                    onChange={(e) => setShiftForm({ ...shiftForm, machineDowntimeMinutes: +e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Remarks */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#0a0d10', display: 'block', marginBottom: 4 }}>
+                  Shift Remarks & Observations
+                </label>
+                <textarea
+                  className="admin-form-input"
+                  rows={2}
+                  value={shiftForm.remarks}
+                  onChange={(e) => setShiftForm({ ...shiftForm, remarks: e.target.value })}
+                  style={{ borderRadius: 12, resize: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  type="submit"
+                  className="admin-btn-primary"
+                  style={{ flex: 1, padding: '10px 16px', fontSize: 12, justifyContent: 'center' }}
+                >
+                  <Check size={14} />
+                  <span>Commit Shift Log</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowShiftUpdateModal(false)}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 9999,
+                    padding: '10px 16px',
+                    fontSize: 12,
+                    color: '#64748b',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          DETAIL MODAL 3: SUPERVISOR SHIFT REPORT AUDIT TRAIL (Section 8)
+          ========================================================================= */}
+      {showShiftHistoryModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: 760, borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <div>
+                <h2 className="modal-title" style={{ fontSize: 16, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
+                  Supervisor Daily Shift Reports & Audit History
+                </h2>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  Immutable log of daily production updates submitted by shift supervisors.
+                </div>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowShiftHistoryModal(false)}>
+                <X size={15} />
+              </button>
+            </div>
+
+            <div style={{ overflowX: 'auto', marginTop: 14 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <thead>
+                  <tr style={{ color: '#64748b', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                    <th style={{ padding: '8px 6px' }}>Report ID</th>
+                    <th style={{ padding: '8px 6px' }}>Order & Product</th>
+                    <th style={{ padding: '8px 6px' }}>Stage</th>
+                    <th style={{ padding: '8px 6px' }}>Output</th>
+                    <th style={{ padding: '8px 6px' }}>Rejected</th>
+                    <th style={{ padding: '8px 6px' }}>Machine</th>
+                    <th style={{ padding: '8px 6px' }}>Supervisor</th>
+                    <th style={{ padding: '8px 6px' }}>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shiftReports.map((rep) => (
+                    <tr key={rep.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '8px 6px', fontWeight: 800, color: '#0a0d10' }}>{rep.id}</td>
+                      <td style={{ padding: '8px 6px', fontWeight: 600 }}>{rep.orderId} &bull; {rep.productName.split('-')[0]}</td>
+                      <td style={{ padding: '8px 6px' }}>
+                        <span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                          {rep.stageName}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 6px', fontWeight: 800, color: '#16a34a' }}>
+                        +{rep.actualProducedQuantity} pcs
+                      </td>
+                      <td style={{ padding: '8px 6px', color: rep.rejectedQuantity > 0 ? '#dc2626' : '#64748b', fontWeight: 700 }}>
+                        {rep.rejectedQuantity} pcs
+                      </td>
+                      <td style={{ padding: '8px 6px', color: '#64748b' }}>{rep.machineId.split(' ')[0]}</td>
+                      <td style={{ padding: '8px 6px', color: '#0a0d10' }}>{rep.submittedBy.split(' ')[0]}</td>
+                      <td style={{ padding: '8px 6px', color: '#64748b' }}>{rep.timestamp}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          DETAIL MODAL 4: ALL PRODUCTION RISK ALERTS (Section 7)
+          ========================================================================= */}
+      {showAllAlertsModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: 640, borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h2 className="modal-title" style={{ fontSize: 16, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
+                All Active Production Risk Alerts ({riskAlerts.length})
+              </h2>
+              <button className="modal-close-btn" onClick={() => setShowAllAlertsModal(false)}>
+                <X size={15} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+              {riskAlerts.map((alt) => (
+                <div
+                  key={alt.id}
+                  style={{
+                    background: alt.severity === 'critical' ? '#fef2f2' : '#fffbeb',
+                    border: `1px solid ${alt.severity === 'critical' ? '#fecaca' : '#fde68a'}`,
+                    borderRadius: 14,
+                    padding: '10px 12px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: alt.severity === 'critical' ? '#dc2626' : '#b45309' }}>
+                      {alt.alertType.replace(/_/g, ' ')} &bull; {alt.affectedOrderId}
+                    </span>
+                    <span style={{ fontSize: 9.5, color: '#94a3b8' }}>{alt.detectedTime}</span>
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', marginTop: 4 }}>
+                    {alt.reason}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#b45309', marginTop: 2 }}>
+                    <strong>Impact:</strong> {alt.businessImpact}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#164e32', marginTop: 2 }}>
+                    <strong>Recommended:</strong> {alt.suggestedAction}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TOAST FEEDBACK
+          ========================================================================= */}
+      {toastMessage && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          background: '#164e32',
+          color: '#ffffff',
+          borderRadius: 14,
+          padding: '10px 18px',
+          fontSize: 11.5,
+          fontWeight: 700,
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          zIndex: 9999
+        }}>
+          <CheckCircle2 size={16} />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 };

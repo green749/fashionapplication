@@ -1,17 +1,160 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  AlertTriangle,
   CheckCircle2,
-  Edit3,
-  Check,
-  X,
+  AlertTriangle,
   Search,
-  FileText,
-  Clock,
-  ChevronRight,
-  ChevronLeft
+  DollarSign,
+  Sparkles,
+  ShieldAlert,
+  Layers,
+  History,
+  TrendingUp,
+  Mail,
+  Phone,
+  GitCompare,
+  MessageSquare,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import type { Order } from '../../types';
+
+// =========================================================================
+// DATA MODELS & TYPES
+// =========================================================================
+
+export interface ClientProfile {
+  id: string; // e.g. 'CL-001'
+  name: string;
+  initials: string;
+  contactPerson: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  totalOrdersCount: number;
+  lastInteraction: string;
+}
+
+export type QuotationType = 'new' | 'revised' | 'alternative';
+
+export type QuotationStatus =
+  | 'draft'
+  | 'pending_admin_approval'
+  | 'revision_required'
+  | 'approved'
+  | 'awaiting_client_response'
+  | 'client_revision_requested'
+  | 'client_accepted'
+  | 'client_declined'
+  | 'finalized'
+  | 'rejected';
+
+export interface NegotiationLog {
+  id: string;
+  date: string;
+  clientRequest: string;
+  requestedDiscountPercent?: number;
+  requestedPrice?: number;
+  originalPrice: number;
+  revisedPrice?: number;
+  adminResponse: string;
+  status: 'pending_admin_decision' | 'concession_approved' | 'concession_rejected' | 'counter_offered';
+}
+
+export interface ProductItem {
+  id: string;
+  name: string;
+  designCode: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  specs: {
+    yarnCount: string;
+    gsm: number | 'Not specified';
+    weave: string;
+    finishing: string;
+  };
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface CostBreakdownItemized {
+  fabricYarn: number;
+  fabricYarnBasis: string;
+  dyeingProcessing: number;
+  dyeingProcessingBasis: string;
+  labour: number;
+  labourBasis: string;
+  overhead: number;
+  overheadBasis: string;
+  wastage: number;
+  wastageBasis: string;
+  priceRiskBuffer: number;
+  priceRiskBufferBasis: string;
+  otherCosts: number;
+  otherCostsBasis: string;
+  totalCost: number;
+}
+
+export interface QuotationHistoryEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  version: string;
+  comments?: string;
+}
+
+export interface QuotationRecord {
+  id: string; // e.g. 'QT-1001'
+  clientId: string; // e.g. 'CL-001'
+  clientName: string;
+  orderId: string; // e.g. 'LP-901'
+  orderTitle: string; // 'Cotton Shirts & Trousers'
+  quotationType: QuotationType;
+  typeLabel: string; // 'Original Proposal', '3.3% Concession Revision', 'Premium Silk Finish Option'
+  linkedQuotationId?: string; // For revised or alternative
+  version: string; // 'v1.0', 'v2.0'
+  status: QuotationStatus;
+  createdDate: string;
+  expiryDate: string;
+  deadlineDate: string;
+  deliveryDays: number;
+  specs: {
+    fabricType: string;
+    yarnCount: string;
+    gsm: number;
+    weave: string;
+    finishing: string;
+    designCount: number;
+  };
+  totalQuantity: number;
+  quantityUnit: string;
+  products: ProductItem[];
+  costBreakdown: CostBreakdownItemized;
+  quotedAmount: number;
+  expectedProfit: number;
+  marginPercent: number;
+  aiRecommendation: {
+    suggestedPrice: number;
+    suggestedMargin: number;
+    costAssumptions: string;
+    wastageAssumptions: string;
+    volatilityConsiderations: string;
+    deliveryFeasibility: string;
+    financialRisks: string;
+    confidenceScore: number;
+  };
+  negotiations: NegotiationLog[];
+  history: QuotationHistoryEntry[];
+  approvedBy?: string;
+  approvedAt?: string;
+  dispatchedAt?: string;
+  finalizedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+}
 
 interface QuotationApprovalsModuleProps {
   orders: Order[];
@@ -20,788 +163,2677 @@ interface QuotationApprovalsModuleProps {
   onRejectQuotation: (orderId: string, reason: string) => void;
 }
 
+// =========================================================================
+// REUSABLE FINANCIAL CALCULATION UTILITIES
+// =========================================================================
+
+const calculateQuotationFinancials = (record: QuotationRecord) => {
+  const {
+    fabricYarn,
+    dyeingProcessing,
+    labour,
+    overhead,
+    wastage,
+    priceRiskBuffer,
+    otherCosts
+  } = record.costBreakdown;
+
+  const totalCost =
+    fabricYarn +
+    dyeingProcessing +
+    labour +
+    overhead +
+    wastage +
+    priceRiskBuffer +
+    otherCosts;
+
+  const expectedProfit = record.quotedAmount - totalCost;
+  const marginPercent =
+    record.quotedAmount > 0 ? (expectedProfit / record.quotedAmount) * 100 : 0;
+  const isPolicyCompliant = marginPercent >= 15.0;
+
+  return {
+    totalCost,
+    expectedProfit,
+    marginPercent: +marginPercent.toFixed(1),
+    isPolicyCompliant
+  };
+};
+
 export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> = ({
   orders: _orders,
-  onSelectOrder,
+  onSelectOrder: _onSelectOrder,
   onApproveQuotation,
   onRejectQuotation
 }) => {
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string>('QT-1001');
+  // Active selected client state (Defaults to 'CL-001' Fashion House)
+  const [selectedClientId, setSelectedClientId] = useState<string>('CL-001');
+
+  // Filter for orders inside the selected client ('all' or specific orderId like 'LP-901')
+  const [selectedOrderFilter, setSelectedOrderFilter] = useState<string>('all');
+
+  // View style for displaying quotations: 'table' (high density) | 'cards' (rich visual)
+  const [quotationViewStyle, setQuotationViewStyle] = useState<'table' | 'cards'>('table');
+
+  // Quick search query (matches Quote ID, Order ID, Product specs)
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Status filter for quotations
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [isEditing, setIsEditing] = useState<boolean>(false);
-  const [editedMargin, setEditedMargin] = useState<number>(18);
 
-  // Quotes list matching mockup
-  const quotationsList = [
-    {
-      id: 'QT-1001',
-      orderId: 'TX-1024',
-      productName: 'Cotton Shirts',
-      clientName: 'ABC Garments',
-      totalCost: '₹ 2,85,000',
-      sellingPrice: '₹ 3,50,000',
-      margin: '18%',
-      marginVal: 18,
-      status: 'pending',
-      statusLabel: 'Pending Approval',
-      date: '29 Oct 2026',
-      costBreakdown: {
-        fabric: '₹ 1,10,000',
-        labour: '₹ 95,000',
-        dyeing: '₹ 60,000',
-        others: '₹ 85,000',
-        totalDisplay: '₹ 3.50L'
-      },
-      riskAlert: 'Cotton price may increase by 5–8% next week.'
-    },
-    {
-      id: 'QT-1002',
-      orderId: 'TX-1025',
-      productName: 'Printed Fabric',
-      clientName: 'StyleMart',
-      totalCost: '₹ 1,72,000',
-      sellingPrice: '₹ 2,15,000',
-      margin: '20%',
-      marginVal: 20,
-      status: 'approved',
-      statusLabel: 'Approved',
-      date: '28 Oct 2026',
-      costBreakdown: {
-        fabric: '₹ 85,000',
-        labour: '₹ 45,000',
-        dyeing: '₹ 25,000',
-        others: '₹ 17,000',
-        totalDisplay: '₹ 2.15L'
-      },
-      riskAlert: 'Dyeing chemical lead time extends into next production batch.'
-    },
-    {
-      id: 'QT-1003',
-      orderId: 'TX-1026',
-      productName: 'Linen Trousers',
-      clientName: 'HomeNest',
-      totalCost: '₹ 3,20,000',
-      sellingPrice: '₹ 3,85,000',
-      margin: '17%',
-      marginVal: 17,
-      status: 'rejected',
-      statusLabel: 'Rejected',
-      date: '28 Oct 2026',
-      costBreakdown: {
-        fabric: '₹ 1,80,000',
-        labour: '₹ 80,000',
-        dyeing: '₹ 35,000',
-        others: '₹ 25,000',
-        totalDisplay: '₹ 3.85L'
-      },
-      riskAlert: 'Specialty flax yarn requires recalculation with higher margin.'
-    },
-    {
-      id: 'QT-1004',
-      orderId: 'TX-1027',
-      productName: 'Polo T-Shirts',
-      clientName: 'TechCart',
-      totalCost: '₹ 1,95,000',
-      sellingPrice: '₹ 2,42,000',
-      margin: '19%',
-      marginVal: 19,
-      status: 'pending',
-      statusLabel: 'Pending Approval',
-      date: '27 Oct 2026',
-      costBreakdown: {
-        fabric: '₹ 95,000',
-        labour: '₹ 60,000',
-        dyeing: '₹ 22,000',
-        others: '₹ 18,000',
-        totalDisplay: '₹ 2.42L'
-      },
-      riskAlert: 'Yarn price fluctuating on domestic exchange (+3.2%).'
-    },
-    {
-      id: 'QT-1005',
-      orderId: 'TX-1028',
-      productName: 'Kitchen Aprons',
-      clientName: 'KitchenKart',
-      totalCost: '₹ 1,20,000',
-      sellingPrice: '₹ 1,52,000',
-      margin: '21%',
-      marginVal: 21,
-      status: 'approved',
-      statusLabel: 'Approved',
-      date: '26 Oct 2026',
-      costBreakdown: {
-        fabric: '₹ 65,000',
-        labour: '₹ 30,000',
-        dyeing: '₹ 15,000',
-        others: '₹ 10,000',
-        totalDisplay: '₹ 1.52L'
-      },
-      riskAlert: 'Canvas fabric in ample stock at warehouse.'
-    }
-  ];
+  // Active quotation in review modal
+  const [activeQuotationId, setActiveQuotationId] = useState<string | null>(null);
+  const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'cost' | 'profit' | 'ai' | 'negotiation' | 'history'>('overview');
 
-  const selectedQuote = quotationsList.find((q) => q.id === selectedQuoteId) || quotationsList[0];
+  // Quotation comparison modal (Order ID whose quotations are being compared)
+  const [comparingOrderId, setComparingOrderId] = useState<string | null>(null);
 
-  const filteredQuotes = quotationsList.filter((q) => {
-    const matchesSearch =
-      q.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      q.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      q.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      q.clientName.toLowerCase().includes(searchQuery.toLowerCase());
+  // Workflow action modals
+  const [showRevisionModal, setShowRevisionModal] = useState<boolean>(false);
+  const [revisionComments, setRevisionComments] = useState<string>('');
+  const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState<string>('');
+  const [showDiscountModal, setShowDiscountModal] = useState<boolean>(false);
+  const [discountConcessionInput, setDiscountConcessionInput] = useState<string>('5');
+  const [discountNotes, setDiscountNotes] = useState<string>('Approved seasonal concession in appreciation of partnership.');
 
-    const matchesStatus = statusFilter === 'all' || q.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const handleApprove = () => {
-    onApproveQuotation(selectedQuote.orderId, isEditing ? editedMargin : selectedQuote.marginVal);
-    setIsEditing(false);
-    alert(`Quotation ${selectedQuote.id} for ${selectedQuote.orderId} approved and signed off!`);
+  // Toast feedback
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3800);
   };
 
-  const handleReject = () => {
-    const reason = prompt('Please provide reason for quotation rejection:', 'Margin below threshold');
-    if (reason) {
-      onRejectQuotation(selectedQuote.orderId, reason);
-      alert(`Quotation ${selectedQuote.id} rejected. Sent back for BOM recalculation.`);
+  // =========================================================================
+  // CLIENT REGISTRY
+  // =========================================================================
+  const [clients] = useState<ClientProfile[]>([
+    {
+      id: 'CL-001',
+      name: 'Fashion House',
+      initials: 'FH',
+      contactPerson: 'Anita Desai (Procurement Head)',
+      email: 'procurement@fashionhouse.com',
+      phone: '+91 98410 12345',
+      address: 'Plot 42, Apparel Park, Rayon Road',
+      city: 'Tirupur, Tamil Nadu',
+      totalOrdersCount: 2,
+      lastInteraction: '29 Oct 2026, 04:30 PM'
+    },
+    {
+      id: 'CL-002',
+      name: 'Urban Textiles',
+      initials: 'UT',
+      contactPerson: 'Vikram Mehta (Commercial VP)',
+      email: 'orders@urbantextiles.com',
+      phone: '+91 97100 65432',
+      address: '14 Industrial Zone, Sarkhej Highway',
+      city: 'Ahmedabad, Gujarat',
+      totalOrdersCount: 1,
+      lastInteraction: '28 Oct 2026, 03:40 PM'
+    },
+    {
+      id: 'CL-003',
+      name: 'Style World',
+      initials: 'SW',
+      contactPerson: 'Priya Sharma (Senior Merchandiser)',
+      email: 'style@styleworld.com',
+      phone: '+91 98840 98765',
+      address: '88 Textile Tower, Electronic City',
+      city: 'Bengaluru, Karnataka',
+      totalOrdersCount: 1,
+      lastInteraction: '29 Oct 2026, 04:30 PM'
+    },
+    {
+      id: 'CL-004',
+      name: 'Home Living',
+      initials: 'HL',
+      contactPerson: 'Rajesh Verma (Sourcing Director)',
+      email: 'procure@homeliving.com',
+      phone: '+91 94440 22110',
+      address: '5B Mill Compound, Pollachi Road',
+      city: 'Coimbatore, Tamil Nadu',
+      totalOrdersCount: 1,
+      lastInteraction: '29 Oct 2026, 03:20 PM'
+    },
+    {
+      id: 'CL-005',
+      name: 'StyleMart',
+      initials: 'SM',
+      contactPerson: 'Sunita Patel (Purchase Officer)',
+      email: 'buyers@stylemart.com',
+      phone: '+91 91234 56780',
+      address: '22 Ring Road Market, Ring Road',
+      city: 'Surat, Gujarat',
+      totalOrdersCount: 1,
+      lastInteraction: '28 Oct 2026, 05:00 PM'
+    },
+    {
+      id: 'CL-006',
+      name: 'HomeNest',
+      initials: 'HN',
+      contactPerson: 'Rohan Nair (Brand Director)',
+      email: 'orders@homenest.com',
+      phone: '+91 98765 43210',
+      address: '102 Guindy Industrial Estate',
+      city: 'Chennai, Tamil Nadu',
+      totalOrdersCount: 1,
+      lastInteraction: '28 Oct 2026, 02:30 PM'
     }
+  ]);
+
+  // =========================================================================
+  // COMPLETE AUDITED QUOTATIONS DATASET
+  // =========================================================================
+  const [quotations, setQuotations] = useState<QuotationRecord[]>([
+    // ---------------------------------------------------------------------
+    // CLIENT CL-001 (Fashion House) · ORDER LP-901
+    // ---------------------------------------------------------------------
+    {
+      id: 'QT-1001',
+      clientId: 'CL-001',
+      clientName: 'Fashion House',
+      orderId: 'LP-901',
+      orderTitle: 'Cotton Shirts & Trousers (5,000 pcs)',
+      quotationType: 'new',
+      typeLabel: 'Original Proposal',
+      version: 'v1.0',
+      status: 'pending_admin_approval',
+      createdDate: '29 Oct 2026, 09:30 AM',
+      expiryDate: '12 Nov 2026',
+      deadlineDate: '05 Nov 2026',
+      deliveryDays: 7,
+      specs: {
+        fabricType: 'Combed Cotton / Twill Blend',
+        yarnCount: '40s Combed & 30s Ring Spun',
+        gsm: 185,
+        weave: 'Oxford & Twill',
+        finishing: 'Bio-Washed Silk Finish',
+        designCount: 3
+      },
+      totalQuantity: 5000,
+      quantityUnit: 'pieces',
+      products: [
+        { id: 'LP-901-A', name: 'Formal Shirt — Design A', designCode: 'FS-A-01', category: 'Formalwear', quantity: 2000, unit: 'pieces', specs: { yarnCount: '40s Combed', gsm: 185, weave: 'Oxford Weave', finishing: 'Bio-Wash' }, unitPrice: 77.6, totalPrice: 155200 },
+        { id: 'LP-901-B', name: 'Formal Pants — Design B', designCode: 'FP-B-02', category: 'Trousers', quantity: 1500, unit: 'pieces', specs: { yarnCount: '30s Ring Spun', gsm: 220, weave: 'Twill Weave', finishing: 'Bio-Enzyme' }, unitPrice: 80.0, totalPrice: 120000 },
+        { id: 'LP-901-C', name: 'Casual Shirt — Design C', designCode: 'CS-C-03', category: 'Casualwear', quantity: 1500, unit: 'pieces', specs: { yarnCount: '40s Combed', gsm: 175, weave: 'Poplin Weave', finishing: 'Silicone Softener' }, unitPrice: 75.2, totalPrice: 112800 }
+      ],
+      costBreakdown: {
+        fabricYarn: 200000,
+        fabricYarnBasis: '40s Combed cotton yarn @ ₹240/kg, 833 kg required',
+        dyeingProcessing: 45000,
+        dyeingProcessingBasis: 'Reactive eco-dyeing & bio-wash finishing @ ₹45/kg',
+        labour: 30000,
+        labourBasis: 'Airjet loom weaving & stitching',
+        overhead: 20000,
+        overheadBasis: 'Plant power & inspection line',
+        wastage: 11025,
+        wastageBasis: '4.5% allowance on fabric & dyeing costs',
+        priceRiskBuffer: 15975,
+        priceRiskBufferBasis: 'Cotton yarn market volatility hedge',
+        otherCosts: 0,
+        otherCostsBasis: 'None',
+        totalCost: 322000
+      },
+      quotedAmount: 388000,
+      expectedProfit: 66000,
+      marginPercent: 17.0,
+      aiRecommendation: {
+        suggestedPrice: 388000,
+        suggestedMargin: 17.0,
+        costAssumptions: 'Based on 40s Combed yarn spot rate ₹240/kg + 4.5% dyeing buffer.',
+        wastageAssumptions: '4.5% cutting allowance.',
+        volatilityConsiderations: 'Raw cotton price surge expected; buffer hedges margin.',
+        deliveryFeasibility: 'Shed A has 4 airjet looms ready.',
+        financialRisks: 'Low default risk; client maintains prompt settlement.',
+        confidenceScore: 94.6
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1001_1', timestamp: '29 Oct 2026, 09:30 AM', actor: 'Quotation Agent v2.4', action: 'DRAFT_CREATED', version: 'v1.0', comments: 'Initial commercial proposal generated.' }
+      ]
+    },
+    {
+      id: 'QT-1007',
+      clientId: 'CL-001',
+      clientName: 'Fashion House',
+      orderId: 'LP-901',
+      orderTitle: 'Cotton Shirts & Trousers (5,000 pcs)',
+      quotationType: 'revised',
+      typeLabel: '3.3% Concession Revision',
+      linkedQuotationId: 'QT-1001',
+      version: 'v2.0',
+      status: 'awaiting_client_response',
+      createdDate: '29 Oct 2026, 01:15 PM',
+      expiryDate: '12 Nov 2026',
+      deadlineDate: '05 Nov 2026',
+      deliveryDays: 7,
+      specs: {
+        fabricType: 'Combed Cotton / Twill Blend',
+        yarnCount: '40s Combed & 30s Ring Spun',
+        gsm: 185,
+        weave: 'Oxford & Twill',
+        finishing: 'Bio-Washed Silk Finish',
+        designCount: 3
+      },
+      totalQuantity: 5000,
+      quantityUnit: 'pieces',
+      products: [
+        { id: 'LP-901-A2', name: 'Formal Shirt — Design A', designCode: 'FS-A-01', category: 'Formalwear', quantity: 2000, unit: 'pieces', specs: { yarnCount: '40s Combed', gsm: 185, weave: 'Oxford', finishing: 'Bio-Wash' }, unitPrice: 75.0, totalPrice: 150000 },
+        { id: 'LP-901-B2', name: 'Formal Pants — Design B', designCode: 'FP-B-02', category: 'Trousers', quantity: 1500, unit: 'pieces', specs: { yarnCount: '30s Ring Spun', gsm: 220, weave: 'Twill', finishing: 'Bio-Enzyme' }, unitPrice: 77.33, totalPrice: 116000 },
+        { id: 'LP-901-C2', name: 'Casual Shirt — Design C', designCode: 'CS-C-03', category: 'Casualwear', quantity: 1500, unit: 'pieces', specs: { yarnCount: '40s Combed', gsm: 175, weave: 'Poplin', finishing: 'Softener' }, unitPrice: 72.67, totalPrice: 109000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 198000,
+        fabricYarnBasis: 'Yarn volume rebate negotiated at ₹237/kg',
+        dyeingProcessing: 45000,
+        dyeingProcessingBasis: 'Reactive eco-dyeing & bio-wash finishing',
+        labour: 30000,
+        labourBasis: 'Standard assembly operations',
+        overhead: 19000,
+        overheadBasis: 'Optimized batch machine scheduling',
+        wastage: 10000,
+        wastageBasis: '4.1% allowance',
+        priceRiskBuffer: 16000,
+        priceRiskBufferBasis: 'Market volatility buffer retained',
+        otherCosts: 0,
+        otherCostsBasis: 'Standard packing',
+        totalCost: 318000
+      },
+      quotedAmount: 375000,
+      expectedProfit: 57000,
+      marginPercent: 15.2,
+      aiRecommendation: {
+        suggestedPrice: 375000,
+        suggestedMargin: 15.2,
+        costAssumptions: 'Accommodates client 3.3% concession while securing volume.',
+        wastageAssumptions: '4.1% cut waste.',
+        volatilityConsiderations: 'Protected by ₹16,000 risk buffer.',
+        deliveryFeasibility: 'On track for 05 Nov shipment.',
+        financialRisks: 'Margin remains compliant with company policy (15.2% ≥ 15.0%).',
+        confidenceScore: 92.4
+      },
+      negotiations: [
+        {
+          id: 'neg_1',
+          date: '29 Oct 2026, 11:00 AM',
+          clientRequest: 'Client requested a 3.3% concession to ₹3,75,000 citing bulk seasonal volume commitments.',
+          requestedDiscountPercent: 3.3,
+          requestedPrice: 375000,
+          originalPrice: 388000,
+          revisedPrice: 375000,
+          adminResponse: 'Admin approved concession. Proposal dispatched to client.',
+          status: 'concession_approved'
+        }
+      ],
+      history: [
+        { id: 'hist_1007_1', timestamp: '29 Oct 2026, 01:15 PM', actor: 'John Doe (Managing Director)', action: 'APPROVED_AND_SENT', version: 'v2.0', comments: 'Approved 3.3% concession. Dispatched to client via portal.' }
+      ],
+      approvedBy: 'John Doe (Managing Director)',
+      approvedAt: '29 Oct 2026, 01:15 PM',
+      dispatchedAt: '29 Oct 2026, 01:20 PM'
+    },
+    {
+      id: 'QT-1010',
+      clientId: 'CL-001',
+      clientName: 'Fashion House',
+      orderId: 'LP-901',
+      orderTitle: 'Cotton Shirts & Trousers (5,000 pcs)',
+      quotationType: 'alternative',
+      typeLabel: 'Alternative: Egyptian Giza Long-Staple',
+      linkedQuotationId: 'QT-1001',
+      version: 'v1.0',
+      status: 'approved',
+      createdDate: '29 Oct 2026, 02:45 PM',
+      expiryDate: '15 Nov 2026',
+      deadlineDate: '08 Nov 2026',
+      deliveryDays: 10,
+      specs: {
+        fabricType: '100% Giza Long-Staple Cotton',
+        yarnCount: '60s Giza Combed',
+        gsm: 195,
+        weave: 'High-Density Satin Twill',
+        finishing: 'Liquid Ammonia Silk Sheen',
+        designCount: 3
+      },
+      totalQuantity: 5000,
+      quantityUnit: 'pieces',
+      products: [
+        { id: 'LP-901-ALT1', name: 'Executive Giza Shirt', designCode: 'EGS-01', category: 'Luxury Formal', quantity: 2000, unit: 'pieces', specs: { yarnCount: '60s Giza', gsm: 195, weave: 'Satin Twill', finishing: 'Liquid Ammonia' }, unitPrice: 84.0, totalPrice: 168000 },
+        { id: 'LP-901-ALT2', name: 'Executive Giza Trousers', designCode: 'EGT-02', category: 'Luxury Formal', quantity: 1500, unit: 'pieces', specs: { yarnCount: '40s Giza Twill', gsm: 235, weave: 'Twill Weave', finishing: 'Silk Sheen' }, unitPrice: 86.67, totalPrice: 130000 },
+        { id: 'LP-901-ALT3', name: 'Executive Casual Shirt', designCode: 'ECS-03', category: 'Luxury Casual', quantity: 1500, unit: 'pieces', specs: { yarnCount: '60s Giza', gsm: 190, weave: 'Poplin', finishing: 'Liquid Ammonia' }, unitPrice: 81.33, totalPrice: 122000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 215000,
+        fabricYarnBasis: '60s Giza Long-Staple yarn @ ₹310/kg',
+        dyeingProcessing: 52000,
+        dyeingProcessingBasis: 'Liquid ammonia mercerization',
+        labour: 32000,
+        labourBasis: 'Specialized finishing technicians',
+        overhead: 18000,
+        overheadBasis: 'Premium line allocation',
+        wastage: 6000,
+        wastageBasis: '2.2% precision cut waste',
+        priceRiskBuffer: 7000,
+        priceRiskBufferBasis: 'Import duty volatility hedge',
+        otherCosts: 0,
+        otherCostsBasis: 'None',
+        totalCost: 330000
+      },
+      quotedAmount: 420000,
+      expectedProfit: 90000,
+      marginPercent: 21.4,
+      aiRecommendation: {
+        suggestedPrice: 420000,
+        suggestedMargin: 21.4,
+        costAssumptions: 'Premium alternative package offering high margin luxury fabric upgrade.',
+        wastageAssumptions: 'Low wastage on precision Italian finishing line.',
+        volatilityConsiderations: 'Giza yarn in factory warehouse stock.',
+        deliveryFeasibility: 'Requires 3 extra days for ammonia treatment (08 Nov delivery).',
+        financialRisks: 'Extremely healthy margin (21.4%).',
+        confidenceScore: 95.8
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1010_1', timestamp: '29 Oct 2026, 02:45 PM', actor: 'John Doe (Managing Director)', action: 'APPROVED', version: 'v1.0', comments: 'Approved as premium alternative commercial option.' }
+      ],
+      approvedBy: 'John Doe (Managing Director)',
+      approvedAt: '29 Oct 2026, 03:00 PM'
+    },
+
+    // ---------------------------------------------------------------------
+    // CLIENT CL-001 (Fashion House) · ORDER LP-905
+    // ---------------------------------------------------------------------
+    {
+      id: 'QT-1012',
+      clientId: 'CL-001',
+      clientName: 'Fashion House',
+      orderId: 'LP-905',
+      orderTitle: 'Custom Twill Chinos (2,500 pcs)',
+      quotationType: 'new',
+      typeLabel: 'Initial Commercial Proposal',
+      version: 'v1.0',
+      status: 'pending_admin_approval',
+      createdDate: '29 Oct 2026, 04:10 PM',
+      expiryDate: '14 Nov 2026',
+      deadlineDate: '25 Nov 2026',
+      deliveryDays: 27,
+      specs: {
+        fabricType: 'Heavyweight Cotton Twill',
+        yarnCount: '20s Heavy Ring Spun',
+        gsm: 250,
+        weave: '3/1 Right Hand Twill',
+        finishing: 'Garment Dye & Sand Wash',
+        designCount: 2
+      },
+      totalQuantity: 2500,
+      quantityUnit: 'pieces',
+      products: [
+        { id: 'LP-905-A', name: 'Classic Khaki Chino', designCode: 'CKC-01', category: 'Pants', quantity: 1500, unit: 'pieces', specs: { yarnCount: '20s Heavy Twill', gsm: 250, weave: '3/1 Twill', finishing: 'Sand Wash' }, unitPrice: 112.0, totalPrice: 168000 },
+        { id: 'LP-905-B', name: 'Olive Slim Chino', designCode: 'OSC-02', category: 'Pants', quantity: 1000, unit: 'pieces', specs: { yarnCount: '20s Heavy Twill', gsm: 250, weave: '3/1 Twill', finishing: 'Sand Wash' }, unitPrice: 112.0, totalPrice: 112000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 142000,
+        fabricYarnBasis: '20s Heavy ring spun cotton yarn @ ₹210/kg',
+        dyeingProcessing: 38000,
+        dyeingProcessingBasis: 'Garment piece dyeing & sand washing',
+        labour: 25000,
+        labourBasis: 'Heavy duty bar-tack stitching',
+        overhead: 14000,
+        overheadBasis: 'Stitching and washer utility',
+        wastage: 5000,
+        wastageBasis: '2.8% allowance',
+        priceRiskBuffer: 4000,
+        priceRiskBufferBasis: 'Standard buffer',
+        otherCosts: 0,
+        otherCostsBasis: 'Standard trims',
+        totalCost: 228000
+      },
+      quotedAmount: 280000,
+      expectedProfit: 52000,
+      marginPercent: 18.6,
+      aiRecommendation: {
+        suggestedPrice: 280000,
+        suggestedMargin: 18.6,
+        costAssumptions: 'Standard chino production run scheduled for mid-November.',
+        wastageAssumptions: '2.8% pattern cutting loss.',
+        volatilityConsiderations: 'Stable 20s heavy yarn supply.',
+        deliveryFeasibility: 'Ample time before 25 Nov delivery date.',
+        financialRisks: 'Comfortable 18.6% margin.',
+        confidenceScore: 93.5
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1012_1', timestamp: '29 Oct 2026, 04:10 PM', actor: 'Quotation Agent v2.4', action: 'DRAFT_CREATED', version: 'v1.0', comments: 'Initial draft for second seasonal order LP-905.' }
+      ]
+    },
+
+    // ---------------------------------------------------------------------
+    // CLIENT CL-002 (Urban Textiles) · ORDER LP-902
+    // ---------------------------------------------------------------------
+    {
+      id: 'QT-1002',
+      clientId: 'CL-002',
+      clientName: 'Urban Textiles',
+      orderId: 'LP-902',
+      orderTitle: 'Urban Poplin Shirts (8,000 pcs)',
+      quotationType: 'new',
+      typeLabel: 'Initial Proposal (Below Margin Threshold)',
+      version: 'v1.0',
+      status: 'revision_required',
+      createdDate: '28 Oct 2026, 11:15 AM',
+      expiryDate: '11 Nov 2026',
+      deadlineDate: '06 Nov 2026',
+      deliveryDays: 8,
+      specs: {
+        fabricType: '100% Cotton Poplin',
+        yarnCount: '30s Ring Spun',
+        gsm: 190,
+        weave: 'Poplin & Oxford',
+        finishing: 'Mercerized',
+        designCount: 2
+      },
+      totalQuantity: 8000,
+      quantityUnit: 'pieces',
+      products: [
+        { id: 'LP-902-A', name: 'Urban Cotton Oxford Shirt', designCode: 'UCO-01', category: 'Shirts', quantity: 5000, unit: 'pieces', specs: { yarnCount: '30s Ring Spun', gsm: 190, weave: 'Oxford', finishing: 'Mercerized' }, unitPrice: 68.75, totalPrice: 343750 },
+        { id: 'LP-902-B', name: 'Urban Poplin Shirt', designCode: 'UPS-02', category: 'Shirts', quantity: 3000, unit: 'pieces', specs: { yarnCount: '30s Ring Spun', gsm: 190, weave: 'Poplin', finishing: 'Pre-Shrunk' }, unitPrice: 68.75, totalPrice: 206250 }
+      ],
+      costBreakdown: {
+        fabricYarn: 310000,
+        fabricYarnBasis: '30s Ring Spun cotton @ ₹215/kg',
+        dyeingProcessing: 65000,
+        dyeingProcessingBasis: 'Continuous pad steam dyeing',
+        labour: 45000,
+        labourBasis: 'High-speed airjet weaving',
+        overhead: 30000,
+        overheadBasis: 'Plant power utility',
+        wastage: 15000,
+        wastageBasis: '4.0% material loss allowance',
+        priceRiskBuffer: 15000,
+        priceRiskBufferBasis: 'Supplier lead time variance',
+        otherCosts: 0,
+        otherCostsBasis: 'Standard packing',
+        totalCost: 480000
+      },
+      quotedAmount: 550000,
+      expectedProfit: 70000,
+      marginPercent: 12.7,
+      aiRecommendation: {
+        suggestedPrice: 568000,
+        suggestedMargin: 15.5,
+        costAssumptions: 'Client insisted on ₹5,50,000 cap yielding 12.7% margin.',
+        wastageAssumptions: '4.0% wastage.',
+        volatilityConsiderations: 'Dye chemical price surge (+4.5%) increases chemical costs.',
+        deliveryFeasibility: 'Tight 06 Nov timeline due to yarn shortage.',
+        financialRisks: 'Margin 12.7% fails mandatory 15% threshold policy.',
+        confidenceScore: 89.2
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1002_1', timestamp: '28 Oct 2026, 11:15 AM', actor: 'Quotation Agent v2.4', action: 'DRAFT_CREATED', version: 'v1.0', comments: 'Draft prepared with client requested cap.' },
+        { id: 'hist_1002_2', timestamp: '28 Oct 2026, 03:40 PM', actor: 'John Doe (Managing Director)', action: 'REVISION_REQUESTED', version: 'v1.0', comments: 'Profit margin 12.7% is below the mandatory 15.0% threshold.' }
+      ]
+    },
+    {
+      id: 'QT-1008',
+      clientId: 'CL-002',
+      clientName: 'Urban Textiles',
+      orderId: 'LP-902',
+      orderTitle: 'Urban Poplin Shirts (8,000 pcs)',
+      quotationType: 'revised',
+      typeLabel: 'Recalibrated Revision (15.5% Margin)',
+      linkedQuotationId: 'QT-1002',
+      version: 'v2.0',
+      status: 'pending_admin_approval',
+      createdDate: '29 Oct 2026, 10:15 AM',
+      expiryDate: '12 Nov 2026',
+      deadlineDate: '06 Nov 2026',
+      deliveryDays: 8,
+      specs: {
+        fabricType: '100% Cotton Poplin',
+        yarnCount: '30s Ring Spun',
+        gsm: 190,
+        weave: 'Poplin & Oxford',
+        finishing: 'Mercerized',
+        designCount: 2
+      },
+      totalQuantity: 8000,
+      quantityUnit: 'pieces',
+      products: [
+        { id: 'LP-902-A2', name: 'Urban Cotton Oxford Shirt', designCode: 'UCO-01', category: 'Shirts', quantity: 5000, unit: 'pieces', specs: { yarnCount: '30s Ring Spun', gsm: 190, weave: 'Oxford', finishing: 'Mercerized' }, unitPrice: 71.0, totalPrice: 355000 },
+        { id: 'LP-902-B2', name: 'Urban Poplin Shirt', designCode: 'UPS-02', category: 'Shirts', quantity: 3000, unit: 'pieces', specs: { yarnCount: '30s Ring Spun', gsm: 190, weave: 'Poplin', finishing: 'Pre-Shrunk' }, unitPrice: 71.0, totalPrice: 213000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 310000,
+        fabricYarnBasis: '30s Ring Spun cotton @ ₹215/kg',
+        dyeingProcessing: 65000,
+        dyeingProcessingBasis: 'Continuous pad steam dyeing',
+        labour: 45000,
+        labourBasis: 'High-speed airjet weaving',
+        overhead: 30000,
+        overheadBasis: 'Plant power utility',
+        wastage: 15000,
+        wastageBasis: '4.0% material loss allowance',
+        priceRiskBuffer: 15000,
+        priceRiskBufferBasis: 'Supplier lead time variance',
+        otherCosts: 0,
+        otherCostsBasis: 'Standard packing',
+        totalCost: 480000
+      },
+      quotedAmount: 568000,
+      expectedProfit: 88000,
+      marginPercent: 15.5,
+      aiRecommendation: {
+        suggestedPrice: 568000,
+        suggestedMargin: 15.5,
+        costAssumptions: 'Price adjusted to ₹5,68,000 ensuring 15.5% gross margin.',
+        wastageAssumptions: '4.0% wastage retained.',
+        volatilityConsiderations: 'Protected against raw greige market spike.',
+        deliveryFeasibility: 'Weaving paced to complete by 06 Nov.',
+        financialRisks: 'Fully compliant with company policy (15.5% ≥ 15.0%).',
+        confidenceScore: 94.0
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1008_1', timestamp: '29 Oct 2026, 10:15 AM', actor: 'Quotation Agent v2.4', action: 'REVISED_DRAFT_SUBMITTED', version: 'v2.0', comments: 'Recalibrated selling price to ₹5,68,000 to meet 15% threshold policy.' }
+      ]
+    },
+
+    // ---------------------------------------------------------------------
+    // CLIENT CL-003 (Style World) · ORDER LP-903
+    // ---------------------------------------------------------------------
+    {
+      id: 'QT-1003',
+      clientId: 'CL-003',
+      clientName: 'Style World',
+      orderId: 'LP-903',
+      orderTitle: 'Printed Bedsheet Sets (3,500 sets)',
+      quotationType: 'new',
+      typeLabel: 'Commercial Proposal: Satin Weave 210 GSM',
+      version: 'v1.0',
+      status: 'client_accepted',
+      createdDate: '27 Oct 2026, 02:40 PM',
+      expiryDate: '10 Nov 2026',
+      deadlineDate: '12 Nov 2026',
+      deliveryDays: 14,
+      specs: {
+        fabricType: '100% Combed Compact Cotton',
+        yarnCount: '60s Combed Compact',
+        gsm: 210,
+        weave: 'Satin Weave',
+        finishing: 'Peach Soft Brush Finish',
+        designCount: 2
+      },
+      totalQuantity: 3500,
+      quantityUnit: 'sets',
+      products: [
+        { id: 'LP-903-A', name: 'King Size Bedsheet Set', designCode: 'BS-K-01', category: 'Bedding', quantity: 2000, unit: 'sets', specs: { yarnCount: '60s Combed', gsm: 210, weave: 'Satin', finishing: 'Peach Soft' }, unitPrice: 90.0, totalPrice: 180000 },
+        { id: 'LP-903-B', name: 'Queen Size Bedsheet Set', designCode: 'BS-Q-02', category: 'Bedding', quantity: 1500, unit: 'sets', specs: { yarnCount: '60s Combed', gsm: 210, weave: 'Satin', finishing: 'Peach Soft' }, unitPrice: 86.67, totalPrice: 130000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 155000,
+        fabricYarnBasis: '60s Combed compact cotton yarn, 750 kg',
+        dyeingProcessing: 38000,
+        dyeingProcessingBasis: 'Rotary screen pigment printing',
+        labour: 24000,
+        labourBasis: 'Wide-width rapier loom weaving',
+        overhead: 14000,
+        overheadBasis: 'Wide-width loom floor charges',
+        wastage: 7000,
+        wastageBasis: '3.6% scrap allowance',
+        priceRiskBuffer: 7000,
+        priceRiskBufferBasis: 'Volume purchase hedge on premium yarn',
+        otherCosts: 0,
+        otherCostsBasis: 'Standard packaging included',
+        totalCost: 245000
+      },
+      quotedAmount: 310000,
+      expectedProfit: 65000,
+      marginPercent: 21.0,
+      aiRecommendation: {
+        suggestedPrice: 310000,
+        suggestedMargin: 21.0,
+        costAssumptions: 'Rotary screen printing chemical costs factored with volume rebate.',
+        wastageAssumptions: '3.6% fabric waste based on wide width cutting.',
+        volatilityConsiderations: 'Compact yarn price stable; inventory reserved.',
+        deliveryFeasibility: 'Comfortable 12 Nov deadline.',
+        financialRisks: 'Minimal risk; client accepted terms.',
+        confidenceScore: 96.5
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1003_1', timestamp: '27 Oct 2026, 02:40 PM', actor: 'Quotation Agent v2.4', action: 'DRAFT_CREATED', version: 'v1.0', comments: 'Initial proposal created.' },
+        { id: 'hist_1003_2', timestamp: '29 Oct 2026, 04:30 PM', actor: 'John Doe (Managing Director)', action: 'APPROVED_AND_SENT', version: 'v1.0', comments: 'Approved with 21.0% margin. Sent to client portal.' },
+        { id: 'hist_1003_3', timestamp: '30 Oct 2026, 10:15 AM', actor: 'Client: Style World', action: 'CLIENT_ACCEPTED', version: 'v1.0', comments: 'Client accepted commercial terms via portal.' }
+      ],
+      approvedBy: 'John Doe (Managing Director)',
+      approvedAt: '29 Oct 2026, 04:30 PM',
+      dispatchedAt: '29 Oct 2026, 04:35 PM'
+    },
+    {
+      id: 'QT-1009',
+      clientId: 'CL-003',
+      clientName: 'Style World',
+      orderId: 'LP-903',
+      orderTitle: 'Printed Bedsheet Sets (3,500 sets)',
+      quotationType: 'alternative',
+      typeLabel: 'Alternative: 300TC Crisp Percale Weave',
+      linkedQuotationId: 'QT-1003',
+      version: 'v1.0',
+      status: 'approved',
+      createdDate: '28 Oct 2026, 09:00 AM',
+      expiryDate: '12 Nov 2026',
+      deadlineDate: '14 Nov 2026',
+      deliveryDays: 16,
+      specs: {
+        fabricType: '100% Organic Percale Cotton',
+        yarnCount: '80s Organic Combed',
+        gsm: 230,
+        weave: '300TC Crisp Percale Weave',
+        finishing: 'Zero-Formaldehyde Crisp Finish',
+        designCount: 2
+      },
+      totalQuantity: 3500,
+      quantityUnit: 'sets',
+      products: [
+        { id: 'LP-903-ALT1', name: 'Percale King Size Set', designCode: 'PKS-01', category: 'Bedding', quantity: 2000, unit: 'sets', specs: { yarnCount: '80s Organic', gsm: 230, weave: 'Percale', finishing: 'Crisp' }, unitPrice: 98.0, totalPrice: 196000 },
+        { id: 'LP-903-ALT2', name: 'Percale Queen Size Set', designCode: 'PQS-02', category: 'Bedding', quantity: 1500, unit: 'sets', specs: { yarnCount: '80s Organic', gsm: 230, weave: 'Percale', finishing: 'Crisp' }, unitPrice: 96.0, totalPrice: 144000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 168000,
+        fabricYarnBasis: '80s Organic Combed compact yarn',
+        dyeingProcessing: 42000,
+        dyeingProcessingBasis: 'Eco-certified reactive dyeing',
+        labour: 26000,
+        labourBasis: 'Precision hemming',
+        overhead: 15000,
+        overheadBasis: 'Organic certification line overhead',
+        wastage: 6000,
+        wastageBasis: '2.5% cut waste',
+        priceRiskBuffer: 6500,
+        priceRiskBufferBasis: 'Organic cotton stock buffer',
+        otherCosts: 0,
+        otherCostsBasis: 'None',
+        totalCost: 263500
+      },
+      quotedAmount: 340000,
+      expectedProfit: 76500,
+      marginPercent: 22.5,
+      aiRecommendation: {
+        suggestedPrice: 340000,
+        suggestedMargin: 22.5,
+        costAssumptions: 'High density 300TC percale package.',
+        wastageAssumptions: 'Low wastage.',
+        volatilityConsiderations: 'Organic yarn booked.',
+        deliveryFeasibility: '14 Nov achievable.',
+        financialRisks: 'Exceptional 22.5% margin.',
+        confidenceScore: 95.0
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1009_1', timestamp: '28 Oct 2026, 09:00 AM', actor: 'John Doe (Managing Director)', action: 'APPROVED', version: 'v1.0', comments: 'Approved as alternative organic percale option.' }
+      ],
+      approvedBy: 'John Doe (Managing Director)',
+      approvedAt: '28 Oct 2026, 09:30 AM'
+    },
+
+    // ---------------------------------------------------------------------
+    // CLIENT CL-004 (Home Living) · ORDER LP-904
+    // ---------------------------------------------------------------------
+    {
+      id: 'QT-1004',
+      clientId: 'CL-004',
+      clientName: 'Home Living',
+      orderId: 'LP-904',
+      orderTitle: 'Living Room Curtains (1,200 pairs)',
+      quotationType: 'new',
+      typeLabel: 'Commercial Proposal: Jacquard & Sheer',
+      version: 'v1.0',
+      status: 'pending_admin_approval',
+      createdDate: '29 Oct 2026, 03:20 PM',
+      expiryDate: '12 Nov 2026',
+      deadlineDate: '20 Nov 2026',
+      deliveryDays: 21,
+      specs: {
+        fabricType: 'Poly-Cotton Jacquard & Voile',
+        yarnCount: '20s/30s Poly-Cotton',
+        gsm: 260,
+        weave: 'Jacquard Damask & Plain',
+        finishing: 'Flame Retardant Chemical Finish',
+        designCount: 2
+      },
+      totalQuantity: 1200,
+      quantityUnit: 'pairs',
+      products: [
+        { id: 'LP-904-A', name: 'Jacquard Drapes (Gold Damask)', designCode: 'JD-GD-01', category: 'Curtains', quantity: 600, unit: 'pairs', specs: { yarnCount: '20s Poly-Cotton', gsm: 260, weave: 'Jacquard', finishing: 'Flame Retardant' }, unitPrice: 120.83, totalPrice: 72500 },
+        { id: 'LP-904-B', name: 'Sheer Voile Panels', designCode: 'SVP-02', category: 'Curtains', quantity: 600, unit: 'pairs', specs: { yarnCount: '30s Poly-Cotton', gsm: 140, weave: 'Plain', finishing: 'Soft Finish' }, unitPrice: 120.83, totalPrice: 72500 }
+      ],
+      costBreakdown: {
+        fabricYarn: 72000,
+        fabricYarnBasis: '20s/30s Poly-Cotton blend, 580 kg',
+        dyeingProcessing: 18000,
+        dyeingProcessingBasis: 'Flame retardant formulation & dyeing',
+        labour: 12000,
+        labourBasis: 'Electronic Jacquard weaving & eyelet stitching',
+        overhead: 7000,
+        overheadBasis: 'Jacquard punch card programming & power',
+        wastage: 3000,
+        wastageBasis: '3.3% pattern matching scrap allowance',
+        priceRiskBuffer: 3000,
+        priceRiskBufferBasis: 'Polyester raw material index buffer',
+        otherCosts: 0,
+        otherCostsBasis: 'None',
+        totalCost: 115000
+      },
+      quotedAmount: 145000,
+      expectedProfit: 30000,
+      marginPercent: 20.7,
+      aiRecommendation: {
+        suggestedPrice: 145000,
+        suggestedMargin: 20.7,
+        costAssumptions: 'Jacquard card design setup amortized across run.',
+        wastageAssumptions: '3.3% cut waste due to pattern repeat.',
+        volatilityConsiderations: 'Flame retardant chemical in stock.',
+        deliveryFeasibility: 'Shed 3 has immediate open slot starting 01 Nov.',
+        financialRisks: 'Low risk; healthy 20.7% margin.',
+        confidenceScore: 92.1
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1004_1', timestamp: '29 Oct 2026, 03:20 PM', actor: 'Quotation Agent v2.4', action: 'DRAFT_CREATED', version: 'v1.0', comments: 'Initial draft prepared with FR chemical certification fee included.' }
+      ]
+    },
+
+    // ---------------------------------------------------------------------
+    // CLIENT CL-005 (StyleMart) · ORDER TX-1025
+    // ---------------------------------------------------------------------
+    {
+      id: 'QT-1005',
+      clientId: 'CL-005',
+      clientName: 'StyleMart',
+      orderId: 'TX-1025',
+      orderTitle: 'Screen Printed Cotton Yardage (3,000 m)',
+      quotationType: 'new',
+      typeLabel: 'Initial Proposal (Discount Cap Enforced)',
+      version: 'v1.0',
+      status: 'rejected',
+      createdDate: '26 Oct 2026, 10:00 AM',
+      expiryDate: '09 Nov 2026',
+      deadlineDate: '18 Nov 2026',
+      deliveryDays: 20,
+      specs: {
+        fabricType: 'Screen Printed Cotton',
+        yarnCount: '30s Combed',
+        gsm: 160,
+        weave: 'Plain Weave',
+        finishing: 'Screen Printed Pigment',
+        designCount: 1
+      },
+      totalQuantity: 3000,
+      quantityUnit: 'metres',
+      products: [
+        { id: 'TX-1025-A', name: 'Screen Printed Cotton Yardage', designCode: 'SPC-01', category: 'Fabrics', quantity: 3000, unit: 'metres', specs: { yarnCount: '30s Combed', gsm: 160, weave: 'Plain', finishing: 'Screen Printed' }, unitPrice: 65.0, totalPrice: 195000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 112000,
+        fabricYarnBasis: '30s Combed greige fabric procurement @ ₹120/m base',
+        dyeingProcessing: 28000,
+        dyeingProcessingBasis: 'Screen pigment printing with 3-colour separation',
+        labour: 18000,
+        labourBasis: 'Airjet weaving & print technician charges',
+        overhead: 10000,
+        overheadBasis: 'Stenter curing heat & fixed plant utilities',
+        wastage: 3500,
+        wastageBasis: '2.5% printing edge trimming loss',
+        priceRiskBuffer: 3500,
+        priceRiskBufferBasis: 'Pigment chemical surcharge buffer',
+        otherCosts: 0,
+        otherCostsBasis: 'Roll packing',
+        totalCost: 175000
+      },
+      quotedAmount: 195000,
+      expectedProfit: 20000,
+      marginPercent: 10.3,
+      aiRecommendation: {
+        suggestedPrice: 208000,
+        suggestedMargin: 15.8,
+        costAssumptions: 'Client demanded 5% discount below feasible cost.',
+        wastageAssumptions: '2.5% edge waste.',
+        volatilityConsiderations: 'Screen chemicals up +8.4%; leaves zero cushion.',
+        deliveryFeasibility: 'Shed capacity available but unviable at ₹1,95,000.',
+        financialRisks: '10.3% margin violates corporate 15% minimum policy.',
+        confidenceScore: 84.0
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1005_1', timestamp: '26 Oct 2026, 10:00 AM', actor: 'Quotation Agent v2.4', action: 'DRAFT_CREATED', version: 'v1.0', comments: 'Draft created matching client cap.' },
+        { id: 'hist_1005_2', timestamp: '28 Oct 2026, 05:00 PM', actor: 'John Doe (Managing Director)', action: 'REJECTED', version: 'v1.0', comments: 'Rejected by MD. 10.3% margin fails company 15% threshold.' }
+      ],
+      rejectedBy: 'John Doe (Managing Director)',
+      rejectedAt: '28 Oct 2026, 05:00 PM',
+      rejectionReason: 'Client requested 5% discount which drops gross margin to 10.3%, below our 15% factory threshold.'
+    },
+    {
+      id: 'QT-1011',
+      clientId: 'CL-005',
+      clientName: 'StyleMart',
+      orderId: 'TX-1025',
+      orderTitle: 'Screen Printed Cotton Yardage (5,000 m Bulk)',
+      quotationType: 'revised',
+      typeLabel: 'Bulk Batch Revision (5,000 m @ ₹65/m)',
+      linkedQuotationId: 'QT-1005',
+      version: 'v2.0',
+      status: 'pending_admin_approval',
+      createdDate: '29 Oct 2026, 03:00 PM',
+      expiryDate: '12 Nov 2026',
+      deadlineDate: '22 Nov 2026',
+      deliveryDays: 24,
+      specs: {
+        fabricType: 'Screen Printed Cotton',
+        yarnCount: '30s Combed',
+        gsm: 160,
+        weave: 'Plain Weave',
+        finishing: 'Screen Printed Pigment',
+        designCount: 1
+      },
+      totalQuantity: 5000,
+      quantityUnit: 'metres',
+      products: [
+        { id: 'TX-1025-B', name: 'Screen Printed Cotton Yardage (Bulk)', designCode: 'SPC-01-BULK', category: 'Fabrics', quantity: 5000, unit: 'metres', specs: { yarnCount: '30s Combed', gsm: 160, weave: 'Plain', finishing: 'Screen Printed' }, unitPrice: 65.0, totalPrice: 325000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 180000,
+        fabricYarnBasis: 'Bulk greige fabric discount secured at ₹112/m',
+        dyeingProcessing: 42000,
+        dyeingProcessingBasis: 'Long-run continuous pigment printing economy of scale',
+        labour: 26000,
+        labourBasis: 'Continuous loom run labour',
+        overhead: 14000,
+        overheadBasis: 'Fixed stenter setup amortized over 5,000 m',
+        wastage: 6500,
+        wastageBasis: '2.0% printing waste',
+        priceRiskBuffer: 6500,
+        priceRiskBufferBasis: 'Chemical index buffer',
+        otherCosts: 0,
+        otherCostsBasis: 'Roll packing',
+        totalCost: 275000
+      },
+      quotedAmount: 325000,
+      expectedProfit: 50000,
+      marginPercent: 15.4,
+      aiRecommendation: {
+        suggestedPrice: 325000,
+        suggestedMargin: 15.4,
+        costAssumptions: 'Scaled volume to 5,000 metres enables honoring client ₹65/m target while reaching 15.4% margin.',
+        wastageAssumptions: '2.0% waste.',
+        volatilityConsiderations: 'Backed by greige supplier volume contract.',
+        deliveryFeasibility: 'Extended timeline to 22 Nov allows continuous run.',
+        financialRisks: 'Margin meets policy requirement (15.4% ≥ 15.0%).',
+        confidenceScore: 93.8
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1011_1', timestamp: '29 Oct 2026, 03:00 PM', actor: 'Quotation Agent v2.4', action: 'BULK_COUNTER_PROPOSAL_CREATED', version: 'v2.0', comments: 'Prepared bulk batch counter-proposal at 5,000 m to satisfy 15.4% margin.' }
+      ]
+    },
+
+    // ---------------------------------------------------------------------
+    // CLIENT CL-006 (HomeNest) · ORDER TX-1026
+    // ---------------------------------------------------------------------
+    {
+      id: 'QT-1006',
+      clientId: 'CL-006',
+      clientName: 'HomeNest',
+      orderId: 'TX-1026',
+      orderTitle: 'Tailored Linen Trousers (2,000 pcs)',
+      quotationType: 'new',
+      typeLabel: 'Final Commercial Agreement (Signed Contract)',
+      version: 'v1.0',
+      status: 'finalized',
+      createdDate: '25 Oct 2026, 04:00 PM',
+      expiryDate: '08 Nov 2026',
+      deadlineDate: '20 Nov 2026',
+      deliveryDays: 26,
+      specs: {
+        fabricType: 'Linen / Cotton Blend',
+        yarnCount: '25s Linen Blend',
+        gsm: 220,
+        weave: 'Twill Weave',
+        finishing: 'Pre-Shrunk Bio-Enzyme Wash',
+        designCount: 1
+      },
+      totalQuantity: 2000,
+      quantityUnit: 'pieces',
+      products: [
+        { id: 'TX-1026-A', name: 'Tailored Linen Trousers', designCode: 'TLT-01', category: 'Apparel', quantity: 2000, unit: 'pieces', specs: { yarnCount: '25s Linen Blend', gsm: 220, weave: 'Twill', finishing: 'Pre-Shrunk' }, unitPrice: 195.0, totalPrice: 390000 }
+      ],
+      costBreakdown: {
+        fabricYarn: 205000,
+        fabricYarnBasis: '25s Linen/Cotton blend yarn, 880 kg imported flax',
+        dyeingProcessing: 48000,
+        dyeingProcessingBasis: 'Bio-enzyme garment washing & tumble drying',
+        labour: 32000,
+        labourBasis: 'Precision trouser stitching, waistband & pocketing',
+        overhead: 18000,
+        overheadBasis: 'Stitching unit power and quality assurance line',
+        wastage: 6000,
+        wastageBasis: '2.4% pattern layout and cutting waste',
+        priceRiskBuffer: 6000,
+        priceRiskBufferBasis: 'Flax customs clearance rate buffer',
+        otherCosts: 0,
+        otherCostsBasis: 'Individual polybag garment packaging',
+        totalCost: 315000
+      },
+      quotedAmount: 390000,
+      expectedProfit: 75000,
+      marginPercent: 19.2,
+      aiRecommendation: {
+        suggestedPrice: 390000,
+        suggestedMargin: 19.2,
+        costAssumptions: 'Imported flax yarn batch verified at fixed currency rate.',
+        wastageAssumptions: '2.4% automated Gerber cutter waste.',
+        volatilityConsiderations: 'Raw inventory locked in port warehouse.',
+        deliveryFeasibility: 'Assembly lines ready.',
+        financialRisks: 'Contract finalized; client deposit confirmed.',
+        confidenceScore: 97.2
+      },
+      negotiations: [],
+      history: [
+        { id: 'hist_1006_1', timestamp: '25 Oct 2026, 04:00 PM', actor: 'Quotation Agent v2.4', action: 'DRAFT_CREATED', version: 'v1.0', comments: 'Initial automated draft prepared.' },
+        { id: 'hist_1006_2', timestamp: '28 Oct 2026, 02:15 PM', actor: 'John Doe (Managing Director)', action: 'APPROVED_AND_SENT', version: 'v1.0', comments: 'Approved with 19.2% profit margin. Dispatched to HomeNest portal.' },
+        { id: 'hist_1006_3', timestamp: '28 Oct 2026, 03:00 PM', actor: 'Client: HomeNest', action: 'CLIENT_ACCEPTED', version: 'v1.0', comments: 'Client signed and accepted proposal via digital agreement.' },
+        { id: 'hist_1006_4', timestamp: '28 Oct 2026, 03:15 PM', actor: 'John Doe (Managing Director)', action: 'FINALIZED', version: 'v1.0', comments: 'Commercial agreement finalized. Order TX-1026 entered active manufacturing.' }
+      ],
+      approvedBy: 'John Doe (Managing Director)',
+      approvedAt: '28 Oct 2026, 02:15 PM',
+      dispatchedAt: '28 Oct 2026, 02:30 PM',
+      finalizedAt: '28 Oct 2026, 03:15 PM'
+    }
+  ]);
+
+  // Selected Client
+  const selectedClient = clients.find((c) => c.id === selectedClientId) || clients[0];
+
+  // All Quotations related to the Selected Client
+  const clientQuotations = useMemo(() => {
+    return quotations.filter((q) => q.clientId === selectedClient.id);
+  }, [quotations, selectedClient.id]);
+
+  // Unique Order IDs for the selected client
+  const clientOrderIds = useMemo(() => {
+    const set = new Set<string>();
+    clientQuotations.forEach((q) => set.add(q.orderId));
+    return Array.from(set);
+  }, [clientQuotations]);
+
+  // Filtered Quotations for display (based on order tab, status, and search)
+  const displayedQuotations = useMemo(() => {
+    return clientQuotations.filter((q) => {
+      const matchesOrder = selectedOrderFilter === 'all' || q.orderId === selectedOrderFilter;
+      const matchesStatus = statusFilter === 'all' || q.status === statusFilter;
+      const matchesSearch =
+        searchQuery === '' ||
+        q.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        q.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        q.specs.fabricType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        q.typeLabel.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesOrder && matchesStatus && matchesSearch;
+    });
+  }, [clientQuotations, selectedOrderFilter, statusFilter, searchQuery]);
+
+  // Active quotation in modal review
+  const activeQuotation = quotations.find((q) => q.id === activeQuotationId) || null;
+  const activeFinancials = activeQuotation ? calculateQuotationFinancials(activeQuotation) : null;
+
+  // Status Badge Helper
+  const getStatusBadge = (status: QuotationStatus) => {
+    switch (status) {
+      case 'draft':
+        return { label: 'Draft', color: '#64748b', bg: '#f1f5f9', border: '#e2e8f0', dot: '#94a3b8' };
+      case 'pending_admin_approval':
+        return { label: 'Pending Admin Approval', color: '#b45309', bg: '#fef3c7', border: '#fde68a', dot: '#f59e0b' };
+      case 'revision_required':
+        return { label: 'Revision Required', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1', dot: '#64748b' };
+      case 'approved':
+        return { label: 'Approved (Internal)', color: '#164e32', bg: '#eaf6ef', border: '#cde7d8', dot: '#16a34a' };
+      case 'awaiting_client_response':
+        return { label: 'Awaiting Client Response', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', dot: '#0ea5e9' };
+      case 'client_revision_requested':
+        return { label: 'Client Revision Requested', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa', dot: '#ea580c' };
+      case 'client_accepted':
+        return { label: 'Client Accepted', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0', dot: '#10b981' };
+      case 'client_declined':
+        return { label: 'Client Declined', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444' };
+      case 'finalized':
+        return { label: 'Finalized Agreement', color: '#164e32', bg: '#dcfce7', border: '#86efac', dot: '#15803d' };
+      case 'rejected':
+        return { label: 'Rejected by Admin', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', dot: '#dc2626' };
+    }
+  };
+
+  const getTypeBadge = (type: QuotationType) => {
+    switch (type) {
+      case 'new':
+        return { label: 'New Proposal', bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' };
+      case 'revised':
+        return { label: 'Revised Quotation', bg: '#fef3c7', color: '#b45309', border: '#fde68a' };
+      case 'alternative':
+        return { label: 'Alternative Option', bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' };
+    }
+  };
+
+  // =========================================================================
+  // WORKFLOW ACTION HANDLERS
+  // =========================================================================
+  const handleAdminApprove = (quoteId: string) => {
+    const timestamp = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    setQuotations((prev) =>
+      prev.map((q) => {
+        if (q.id === quoteId) {
+          const fin = calculateQuotationFinancials(q);
+          return {
+            ...q,
+            status: 'approved',
+            approvedBy: 'John Doe (Managing Director)',
+            approvedAt: timestamp,
+            history: [
+              ...q.history,
+              { id: `hist_${Date.now()}`, timestamp, actor: 'John Doe (Managing Director)', action: 'APPROVED_BY_ADMIN', version: q.version, comments: `Admin approved with ${fin.marginPercent}% margin.` }
+            ]
+          };
+        }
+        return q;
+      })
+    );
+    const target = quotations.find((q) => q.id === quoteId);
+    if (target) {
+      onApproveQuotation(target.orderId, calculateQuotationFinancials(target).marginPercent);
+    }
+    showToast(`Quotation ${quoteId} APPROVED by Admin. Client dispatch unlocked!`);
+  };
+
+  const handleSendToClient = (quoteId: string) => {
+    const target = quotations.find((q) => q.id === quoteId);
+    if (!target) return;
+    if (target.status !== 'approved') {
+      alert('Only an Admin-approved quotation can be sent to clients.');
+      return;
+    }
+    const timestamp = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    setQuotations((prev) =>
+      prev.map((q) => (q.id === quoteId ? { ...q, status: 'awaiting_client_response', dispatchedAt: timestamp } : q))
+    );
+    showToast(`Quotation ${quoteId} successfully dispatched to ${target.clientName}!`);
+  };
+
+  const handleRecordClientAcceptance = (quoteId: string) => {
+    setQuotations((prev) =>
+      prev.map((q) => (q.id === quoteId ? { ...q, status: 'client_accepted' } : q))
+    );
+    showToast(`Client Acceptance recorded for ${quoteId}! Ready to finalize.`);
+  };
+
+  const handleFinalizeQuotation = (quoteId: string) => {
+    const target = quotations.find((q) => q.id === quoteId);
+    if (!target) return;
+    const timestamp = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    setQuotations((prev) =>
+      prev.map((q) => {
+        if (q.orderId === target.orderId) {
+          return q.id === quoteId ? { ...q, status: 'finalized', finalizedAt: timestamp } : q;
+        }
+        return q;
+      })
+    );
+    showToast(`Order ${target.orderId} FINALIZED with quotation ${quoteId}! Commercial terms committed.`);
+  };
+
+  const handleConfirmRevision = () => {
+    if (!activeQuotationId || !revisionComments.trim()) return;
+    setQuotations((prev) =>
+      prev.map((q) => (q.id === activeQuotationId ? { ...q, status: 'revision_required' } : q))
+    );
+    setShowRevisionModal(false);
+    setRevisionComments('');
+    showToast(`Revision requested for ${activeQuotationId}. Sent to Quotation Agent.`);
+  };
+
+  const handleConfirmReject = () => {
+    if (!activeQuotationId || !rejectionReasonInput.trim()) return;
+    setQuotations((prev) =>
+      prev.map((q) => (q.id === activeQuotationId ? { ...q, status: 'rejected', rejectionReason: rejectionReasonInput.trim() } : q))
+    );
+    const target = quotations.find((q) => q.id === activeQuotationId);
+    if (target) {
+      onRejectQuotation(target.orderId, rejectionReasonInput.trim());
+    }
+    setShowRejectModal(false);
+    setRejectionReasonInput('');
+    showToast(`Quotation ${activeQuotationId} REJECTED.`);
+  };
+
+  const handleConfirmConcession = () => {
+    if (!activeQuotationId) return;
+    const concessionNum = parseFloat(discountConcessionInput) || 5;
+    const timestamp = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    setQuotations((prev) =>
+      prev.map((q) => {
+        if (q.id === activeQuotationId) {
+          const discountAmt = Math.round(q.quotedAmount * (concessionNum / 100));
+          const newPrice = q.quotedAmount - discountAmt;
+          const newProfit = newPrice - q.costBreakdown.totalCost;
+          const newMargin = +((newProfit / newPrice) * 100).toFixed(1);
+
+          return {
+            ...q,
+            quotedAmount: newPrice,
+            expectedProfit: newProfit,
+            marginPercent: newMargin,
+            status: 'approved',
+            negotiations: [
+              ...q.negotiations,
+              {
+                id: `neg_${Date.now()}`,
+                date: timestamp,
+                clientRequest: `Client requested ${concessionNum}% discount.`,
+                requestedDiscountPercent: concessionNum,
+                requestedPrice: newPrice,
+                originalPrice: q.quotedAmount,
+                revisedPrice: newPrice,
+                adminResponse: discountNotes.trim() || 'Admin authorized concession.',
+                status: 'concession_approved'
+              }
+            ]
+          };
+        }
+        return q;
+      })
+    );
+    setShowDiscountModal(false);
+    showToast(`Concession of ${concessionNum}% authorized by Admin. Quotation price updated!`);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
-      {/* 1. PAGE HEADER */}
-      <div className="module-header-flat">
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--c-text-primary)' }}>
-            Quotations & Approvals
-          </h1>
-        </div>
-      </div>
-
-      {/* 2. TOP 4 KPI CARDS */}
-      <div className="kpi-strip-flat">
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-              Total Quotations
-            </div>
-            <div style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9999,
-              background: '#ede9fe',
-              color: '#5b21b6',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <FileText size={15} />
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>48</span>
-            <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>&uarr; 8%</span>
-          </div>
-        </div>
-
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-              Pending Approval
-            </div>
-            <div style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9999,
-              background: '#dff1ea',
-              color: '#1e473d',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Clock size={15} />
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>12</span>
-            <span style={{ fontSize: 11, color: '#b45309', fontWeight: 700 }}>&uarr; 2%</span>
-          </div>
-        </div>
-
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-              Approved
-            </div>
-            <div style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9999,
-              background: '#e0f2fe',
-              color: '#0369a1',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <CheckCircle2 size={15} />
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>30</span>
-            <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>&uarr; 5%</span>
-          </div>
-        </div>
-
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>
-              Rejected
-            </div>
-            <div style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9999,
-              background: '#fee2e2',
-              color: '#dc2626',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <X size={15} />
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>6</span>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>&rarr; 0%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. MAIN 2-COLUMN VIEW (Quotes List + Details Pane) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1.45fr) minmax(320px, 0.95fr)',
-        gap: 16,
-        flex: 1,
-        minHeight: 0
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12,
+      height: '100%',
+      overflowY: 'auto',
+      paddingRight: 4,
+      boxSizing: 'border-box'
+    }}>
+      {/* ===================================================================
+          1. APPLICATION HEADER
+          =================================================================== */}
+      <div className="module-header-flat" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 8
       }}>
-        {/* Left Column: Quotations Filter & List */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-          {/* Search & Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.4px' }}>
+            Quotations &amp; Approvals
+          </h1>
+          <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0' }}>
+            Click any client below to inspect all associated commercial proposals, order revisions, and alternatives.
+          </p>
+        </div>
+
+        <div style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: '#164e32',
+          background: '#eaf6ef',
+          border: '1px solid #cde7d8',
+          padding: '5px 12px',
+          borderRadius: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6
+        }}>
+          <Sparkles size={13} color="#16a34a" />
+          <span>Quotation Agent Active (v2.4)</span>
+        </div>
+      </div>
+
+      {/* ===================================================================
+          2. CLIENTS BAR: DISPLAY THE CLIENTS (CLICK ANY CLIENT TO VIEW QUOTES)
+          =================================================================== */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#111827', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            Select Client Account ({clients.length})
+          </span>
+          <span style={{ fontSize: 10.5, color: '#64748b' }}>
+            Clicking a client immediately loads all related commercial proposals below
+          </span>
+        </div>
+
+        {/* Responsive Horizontal Grid of Client Cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))',
+          gap: 8
+        }}>
+          {clients.map((client) => {
+            const isSelected = client.id === selectedClientId;
+            const quotes = quotations.filter((q) => q.clientId === client.id);
+            const pendingCount = quotes.filter((q) => q.status === 'pending_admin_approval').length;
+            const hasFinalized = quotes.some((q) => q.status === 'finalized');
+            const hasAccepted = quotes.some((q) => q.status === 'client_accepted');
+
+            return (
+              <div
+                key={client.id}
+                onClick={() => {
+                  setSelectedClientId(client.id);
+                  setSelectedOrderFilter('all');
+                }}
+                style={{
+                  background: isSelected ? '#164e32' : '#ffffff',
+                  color: isSelected ? '#ffffff' : '#111827',
+                  border: isSelected ? '2px solid #164e32' : '1px solid #edf2ef',
+                  borderRadius: 14,
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  boxShadow: isSelected ? '0 4px 14px rgba(22, 78, 50, 0.22)' : '0 1px 3px rgba(0,0,0,0.02)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: 6,
+                  transition: 'all 0.15s ease',
+                  position: 'relative'
+                }}
+              >
+                {/* Header: Initial Avatar & Name */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: isSelected ? 'rgba(255,255,255,0.2)' : '#eaf6ef',
+                    color: isSelected ? '#ffffff' : '#164e32',
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    {client.initials}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {client.name}
+                    </div>
+                    <div style={{
+                      fontSize: 9.5,
+                      color: isSelected ? '#cde7d8' : '#64748b',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {client.city}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer: Count of Quotes & Status Badge */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingTop: 6,
+                  borderTop: isSelected ? '1px solid rgba(255,255,255,0.15)' : '1px solid #f8faf9',
+                  fontSize: 10
+                }}>
+                  <span style={{ color: isSelected ? '#e2e8f0' : '#475569', fontWeight: 600 }}>
+                    {quotes.length} {quotes.length > 1 ? 'Quotes' : 'Quote'}
+                  </span>
+
+                  {pendingCount > 0 ? (
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 800,
+                      background: isSelected ? '#f59e0b' : '#fef3c7',
+                      color: isSelected ? '#ffffff' : '#b45309',
+                      padding: '1px 6px',
+                      borderRadius: 9999
+                    }}>
+                      {pendingCount} Pending
+                    </span>
+                  ) : hasFinalized ? (
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 800,
+                      background: isSelected ? '#10b981' : '#dcfce7',
+                      color: isSelected ? '#ffffff' : '#15803d',
+                      padding: '1px 6px',
+                      borderRadius: 9999
+                    }}>
+                      Finalized
+                    </span>
+                  ) : hasAccepted ? (
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 800,
+                      background: isSelected ? '#10b981' : '#ecfdf5',
+                      color: isSelected ? '#ffffff' : '#047857',
+                      padding: '1px 6px',
+                      borderRadius: 9999
+                    }}>
+                      Accepted
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      background: isSelected ? 'rgba(255,255,255,0.15)' : '#f1f5f9',
+                      color: isSelected ? '#ffffff' : '#64748b',
+                      padding: '1px 6px',
+                      borderRadius: 9999
+                    }}>
+                      Dispatched
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ===================================================================
+          3. SELECTED CLIENT QUOTATIONS CONTAINER
+          =================================================================== */}
+      <div style={{
+        background: '#ffffff',
+        borderRadius: 18,
+        border: '1.5px solid #edf2ef',
+        padding: '16px 18px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12
+      }}>
+        {/* Selected Client Operational Ribbon */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+          borderBottom: '1px solid #f1f5f9',
+          paddingBottom: 10
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#164e32', background: '#eaf6ef', padding: '2px 8px', borderRadius: 6 }}>
+                {selectedClient.id}
+              </span>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: 0 }}>
+                {selectedClient.name} &bull; Quotations ({clientQuotations.length})
+              </h2>
+            </div>
+            <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span>Contact: <strong>{selectedClient.contactPerson}</strong></span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Mail size={11} /> {selectedClient.email}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={11} /> {selectedClient.phone}</span>
+            </div>
+          </div>
+
+          {/* View Toggle & Search Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Quick Search inside this client */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
+              gap: 6,
+              background: '#f8faf9',
+              border: '1px solid #edf2ef',
               borderRadius: 9999,
-              padding: '6px 14px',
-              flex: 1
+              padding: '4px 10px',
+              fontSize: 10.5
             }}>
-              <Search size={14} color="#94a3b8" />
+              <Search size={12} color="#94a3b8" />
               <input
                 type="text"
-                placeholder="Search quotation..."
+                placeholder="Search Quote ID, Order, Fabric..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ border: 'none', outline: 'none', fontSize: 11.5, background: 'transparent', width: '100%', color: '#1e293b' }}
+                style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 10.5, width: 140 }}
               />
             </div>
 
+            {/* Status Filter */}
             <select
-              className="admin-form-select"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
+              style={{
+                background: '#f8faf9',
+                border: '1px solid #edf2ef',
+                borderRadius: 9999,
+                padding: '4px 10px',
+                fontSize: 10.5,
+                color: '#334155',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
             >
-              <option value="all">All Status</option>
-              <option value="pending">Pending Approval</option>
+              <option value="all">All Statuses</option>
+              <option value="pending_approval">Pending Approval</option>
               <option value="approved">Approved</option>
+              <option value="awaiting_client">Sent to Client</option>
+              <option value="client_accepted">Accepted</option>
+              <option value="finalized">Finalized</option>
+              <option value="revision_requested">Revision Requested</option>
               <option value="rejected">Rejected</option>
             </select>
 
-            <select className="admin-form-select">
-              <option>Date Range</option>
-              <option>This Week</option>
-              <option>This Month</option>
-            </select>
+            {/* Table / Cards View Toggle */}
+            <div style={{
+              display: 'flex',
+              background: '#f1f5f9',
+              borderRadius: 8,
+              padding: 2
+            }}>
+              <button
+                onClick={() => setQuotationViewStyle('table')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: quotationViewStyle === 'table' ? '#ffffff' : 'transparent',
+                  color: quotationViewStyle === 'table' ? '#164e32' : '#64748b',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  fontSize: 10.5,
+                  fontWeight: quotationViewStyle === 'table' ? 700 : 500,
+                  cursor: 'pointer',
+                  boxShadow: quotationViewStyle === 'table' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none'
+                }}
+              >
+                <List size={12} />
+                Table View
+              </button>
+              <button
+                onClick={() => setQuotationViewStyle('cards')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: quotationViewStyle === 'cards' ? '#ffffff' : 'transparent',
+                  color: quotationViewStyle === 'cards' ? '#164e32' : '#64748b',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  fontSize: 10.5,
+                  fontWeight: quotationViewStyle === 'cards' ? 700 : 500,
+                  cursor: 'pointer',
+                  boxShadow: quotationViewStyle === 'cards' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none'
+                }}
+              >
+                <LayoutGrid size={12} />
+                Cards View
+              </button>
+            </div>
           </div>
+        </div>
 
-          {/* Quotations List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', flex: 1 }}>
-            {filteredQuotes.map((q) => {
-              const isSelected = q.id === selectedQuoteId;
-              const isPending = q.status === 'pending';
-              const isApproved = q.status === 'approved';
+        {/* Order Group Filter Pills (e.g. All Quotations, Order LP-901, Order LP-905) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setSelectedOrderFilter('all')}
+              style={{
+                background: selectedOrderFilter === 'all' ? '#164e32' : '#f8faf9',
+                color: selectedOrderFilter === 'all' ? '#ffffff' : '#475569',
+                border: selectedOrderFilter === 'all' ? '1px solid #164e32' : '1px solid #edf2ef',
+                borderRadius: 9999,
+                padding: '4px 12px',
+                fontSize: 10.5,
+                fontWeight: selectedOrderFilter === 'all' ? 700 : 500,
+                cursor: 'pointer'
+              }}
+            >
+              All Client Quotations ({clientQuotations.length})
+            </button>
 
+            {clientOrderIds.map((orderId) => {
+              const orderQuotes = clientQuotations.filter((q) => q.orderId === orderId);
+              const isSelected = selectedOrderFilter === orderId;
               return (
-                <div
-                  key={q.id}
-                  onClick={() => {
-                    setSelectedQuoteId(q.id);
-                    onSelectOrder(q.orderId);
-                  }}
+                <button
+                  key={orderId}
+                  onClick={() => setSelectedOrderFilter(orderId)}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    borderRadius: 20,
-                    background: isSelected ? '#dff1ea' : '#ffffff',
-                    border: isSelected ? '1px solid #c6e5db' : '1px solid #e5e9ee',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    boxShadow: isSelected ? '0 2px 8px rgba(30, 71, 61, 0.05)' : 'none'
+                    background: isSelected ? '#164e32' : '#ffffff',
+                    color: isSelected ? '#ffffff' : '#475569',
+                    border: isSelected ? '1px solid #164e32' : '1px solid #edf2ef',
+                    borderRadius: 9999,
+                    padding: '4px 12px',
+                    fontSize: 10.5,
+                    fontWeight: isSelected ? 700 : 500,
+                    cursor: 'pointer'
                   }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 90 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 800, color: isSelected ? '#1e473d' : '#0a0d10' }}>
-                      {q.id}
-                    </div>
-                    <div style={{ fontSize: 10, color: isSelected ? '#3b6f63' : '#64748b' }}>
-                      {q.orderId}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, padding: '0 10px' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#1e473d' : '#0a0d10' }}>
-                      {q.productName}
-                    </div>
-                    <div style={{ fontSize: 10, color: isSelected ? '#3b6f63' : '#64748b' }}>
-                      {q.clientName}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, minWidth: 95 }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: isSelected ? '#1e473d' : '#0a0d10' }}>
-                      {q.totalCost}
-                    </div>
-                    <div style={{ fontSize: 10, color: isSelected ? '#3b6f63' : '#64748b' }}>
-                      Margin: {q.margin}
-                    </div>
-                  </div>
-
-                  <div style={{ minWidth: 120, textAlign: 'center' }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '3px 10px',
-                      borderRadius: 9999,
-                      fontSize: 9.5,
-                      fontWeight: 700,
-                      background: isPending ? '#fef3c7' : (isApproved ? '#dcfce7' : '#fee2e2'),
-                      color: isPending ? '#b45309' : (isApproved ? '#15803d' : '#dc2626')
-                    }}>
-                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />
-                      {q.statusLabel}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: 10, color: isSelected ? '#3b6f63' : '#64748b', minWidth: 65, textAlign: 'right' }}>
-                    {q.date.replace(' 2026', '')}
-                  </div>
-
-                  <ChevronRight size={14} color={isSelected ? '#1e473d' : '#94a3b8'} style={{ marginLeft: 6 }} />
-                </div>
+                  Order {orderId} ({orderQuotes.length})
+                </button>
               );
             })}
           </div>
 
-          {/* Bottom Pagination */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '6px 0',
-            fontSize: 11,
-            color: '#64748b',
-            marginTop: 'auto'
-          }}>
-            <span>Showing 1 – {filteredQuotes.length} of 48 quotations</span>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <button style={{
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: 9999,
-                width: 26,
-                height: 26,
-                display: 'flex',
+          {/* Compare Quotations CTA (if selected client has an order with multiple quotations) */}
+          {clientOrderIds.some((oid) => clientQuotations.filter((q) => q.orderId === oid).length >= 2) && (
+            <button
+              onClick={() => {
+                const multiOrder = clientOrderIds.find((oid) => clientQuotations.filter((q) => q.orderId === oid).length >= 2);
+                if (multiOrder) setComparingOrderId(multiOrder);
+              }}
+              style={{
+                display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}>
-                <ChevronLeft size={12} color="#64748b" />
-              </button>
-
-              <button style={{
-                background: '#111315',
-                color: '#ffffff',
-                border: 'none',
+                gap: 5,
+                background: '#ffffff',
+                color: '#164e32',
+                border: '1.5px solid #cde7d8',
                 borderRadius: 9999,
-                width: 26,
-                height: 26,
-                fontSize: 11,
+                padding: '4px 12px',
+                fontSize: 10.5,
                 fontWeight: 700,
                 cursor: 'pointer'
-              }}>
-                1
-              </button>
-
-              <button style={{
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: 9999,
-                width: 26,
-                height: 26,
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#475569',
-                cursor: 'pointer'
-              }}>
-                2
-              </button>
-
-              <button style={{
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: 9999,
-                width: 26,
-                height: 26,
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#475569',
-                cursor: 'pointer'
-              }}>
-                3
-              </button>
-
-              <span style={{ padding: '0 2px', color: '#94a3b8' }}>...</span>
-
-              <button style={{
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: 9999,
-                width: 26,
-                height: 26,
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#475569',
-                cursor: 'pointer'
-              }}>
-                10
-              </button>
-
-              <button style={{
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: 9999,
-                width: 26,
-                height: 26,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}>
-                <ChevronRight size={12} color="#64748b" />
-              </button>
-            </div>
-          </div>
+              }}
+            >
+              <GitCompare size={12} />
+              Compare Quotations
+            </button>
+          )}
         </div>
 
-        {/* Right Column: Quotation Details & Cost Breakdown */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 24,
-          border: '1px solid #e5e9ee',
-          padding: 18,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-          overflowY: 'auto'
-        }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <FileText size={16} color="#111315" />
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10' }}>
-                Quotation Details
-              </h3>
-            </div>
+        {/* ===============================================================
+            ALL QUOTATIONS RELATED TO THE SELECTED CLIENT (TABLE VIEW)
+            =============================================================== */}
+        {quotationViewStyle === 'table' && (
+          <div style={{ border: '1px solid #edf2ef', borderRadius: 12, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 900 }}>
+              <thead>
+                <tr style={{ background: '#f8faf9', color: '#64748b', borderBottom: '1px solid #edf2ef', textAlign: 'left' }}>
+                  <th style={{ padding: '9px 10px', width: 95, fontWeight: 700 }}>Quote ID</th>
+                  <th style={{ padding: '9px 10px', width: 85, fontWeight: 700 }}>Order ID</th>
+                  <th style={{ padding: '9px 10px', width: 130, fontWeight: 700 }}>Proposal Type</th>
+                  <th style={{ padding: '9px 10px', fontWeight: 700 }}>Fabric &amp; Specifications</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'right', width: 90, fontWeight: 700 }}>Quantity</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'right', width: 95, fontWeight: 700 }}>Cost</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'right', width: 105, fontWeight: 700 }}>Quoted Price</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'center', width: 90, fontWeight: 700 }}>Margin</th>
+                  <th style={{ padding: '9px 10px', width: 135, fontWeight: 700 }}>Status</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'right', width: 130, fontWeight: 700 }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedQuotations.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
+                      No quotations found matching the selected filter.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedQuotations.map((quote) => {
+                    const fin = calculateQuotationFinancials(quote);
+                    const statusBadge = getStatusBadge(quote.status);
+                    const typeBadge = getTypeBadge(quote.quotationType);
 
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '3px 10px',
-              borderRadius: 9999,
-              fontSize: 10,
-              fontWeight: 700,
-              background: selectedQuote.status === 'pending' ? '#fef3c7' : (selectedQuote.status === 'approved' ? '#dcfce7' : '#fee2e2'),
-              color: selectedQuote.status === 'pending' ? '#b45309' : (selectedQuote.status === 'approved' ? '#15803d' : '#dc2626')
-            }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />
-              {selectedQuote.statusLabel}
-            </span>
+                    return (
+                      <tr
+                        key={quote.id}
+                        onClick={() => {
+                          setActiveQuotationId(quote.id);
+                          setActiveDetailTab('overview');
+                        }}
+                        style={{
+                          borderBottom: '1px solid #f8faf9',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fdf9')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        {/* Quote ID & Version */}
+                        <td style={{ padding: '10px 10px', fontWeight: 800, color: '#164e32' }}>
+                          <div>{quote.id}</div>
+                          <span style={{ fontSize: 9, color: '#94a3b8' }}>{quote.version}</span>
+                        </td>
+
+                        {/* Order ID */}
+                        <td style={{ padding: '10px 10px', fontWeight: 700, color: '#111827' }}>
+                          {quote.orderId}
+                        </td>
+
+                        {/* Type Badge */}
+                        <td style={{ padding: '10px 10px' }}>
+                          <span style={{
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            background: typeBadge.bg,
+                            color: typeBadge.color,
+                            border: `1px solid ${typeBadge.border}`,
+                            padding: '2px 7px',
+                            borderRadius: 6
+                          }}>
+                            {typeBadge.label}
+                          </span>
+                        </td>
+
+                        {/* Fabric & Specs */}
+                        <td style={{ padding: '10px 10px' }}>
+                          <div style={{ fontWeight: 600, color: '#111827' }}>{quote.specs.fabricType}</div>
+                          <div style={{ fontSize: 9.5, color: '#64748b' }}>
+                            {quote.specs.gsm} GSM &bull; {quote.specs.weave} &bull; {quote.specs.yarnCount}
+                          </div>
+                        </td>
+
+                        {/* Quantity */}
+                        <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                          {quote.totalQuantity.toLocaleString()} {quote.quantityUnit}
+                        </td>
+
+                        {/* Cost */}
+                        <td style={{ padding: '10px 10px', textAlign: 'right', color: '#475569', fontVariantNumeric: 'tabular-nums' }}>
+                          ₹{fin.totalCost.toLocaleString()}
+                        </td>
+
+                        {/* Quoted Price */}
+                        <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                          ₹{quote.quotedAmount.toLocaleString()}
+                        </td>
+
+                        {/* Margin % */}
+                        <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            color: fin.isPolicyCompliant ? '#16a34a' : '#dc2626',
+                            background: fin.isPolicyCompliant ? '#ecfdf5' : '#fee2e2',
+                            padding: '2px 6px',
+                            borderRadius: 4
+                          }}>
+                            {fin.marginPercent.toFixed(1)}% {fin.isPolicyCompliant ? '✓' : '⚠'}
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td style={{ padding: '10px 10px' }}>
+                          <span style={{
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            background: statusBadge.bg,
+                            color: statusBadge.color,
+                            border: `1px solid ${statusBadge.border}`,
+                            padding: '2px 7px',
+                            borderRadius: 9999,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}>
+                            <span style={{ width: 4, height: 4, borderRadius: '50%', background: statusBadge.dot }} />
+                            {statusBadge.label}
+                          </span>
+                        </td>
+
+                        {/* Action Buttons */}
+                        <td style={{ padding: '10px 10px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: 4 }}>
+                            {quote.status === 'pending_admin_approval' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAdminApprove(quote.id);
+                                }}
+                                style={{
+                                  background: '#164e32',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  padding: '3px 8px',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Approve
+                              </button>
+                            )}
+
+                            {quote.status === 'approved' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSendToClient(quote.id);
+                                }}
+                                style={{
+                                  background: '#0284c7',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  padding: '3px 8px',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Send
+                              </button>
+                            )}
+
+                            {quote.status === 'client_accepted' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleFinalizeQuotation(quote.id);
+                                }}
+                                style={{
+                                  background: '#15803d',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  padding: '3px 8px',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Finalize
+                              </button>
+                            )}
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveQuotationId(quote.id);
+                                setActiveDetailTab('overview');
+                              }}
+                              style={{
+                                background: '#f1f5f9',
+                                color: '#164e32',
+                                border: '1px solid #d1d5db',
+                                borderRadius: 6,
+                                padding: '3px 8px',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Review
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
+        )}
 
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#0a0d10' }}>
-              {selectedQuote.id} &bull; {selectedQuote.orderId}
-            </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
-              {selectedQuote.productName} | Client: <strong>{selectedQuote.clientName}</strong>
-            </div>
-          </div>
-
-          {/* 3 Key Stat Boxes */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>Total Cost</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', marginTop: 2 }}>
-                {selectedQuote.totalCost}
-              </div>
-            </div>
-
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>Selling Price</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', marginTop: 2 }}>
-                {selectedQuote.sellingPrice}
-              </div>
-            </div>
-
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>Profit Margin</div>
-              {isEditing ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                  <input
-                    type="number"
-                    value={editedMargin}
-                    onChange={(e) => setEditedMargin(parseFloat(e.target.value) || 0)}
-                    style={{ width: 44, fontSize: 12, fontWeight: 700, padding: '2px 4px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-                  />
-                  <span style={{ fontSize: 12, fontWeight: 700 }}>%</span>
-                </div>
-              ) : (
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#16a34a', marginTop: 2 }}>
-                  {selectedQuote.margin}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Cost Breakdown Donut & Values */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#0a0d10' }}>
-                Cost Breakdown
-              </div>
-              <span style={{ fontSize: 10, color: '#1e473d', fontWeight: 700, cursor: 'pointer' }}>
-                View Details &rarr;
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              {/* Donut Chart */}
-              <div style={{ position: 'relative', width: 85, height: 85, flexShrink: 0 }}>
-                <svg width="85" height="85" viewBox="0 0 85 85">
-                  <circle cx="42.5" cy="42.5" r="32" stroke="#f1f5f9" strokeWidth="9" fill="none" />
-                  {/* Fabric segment */}
-                  <circle
-                    cx="42.5"
-                    cy="42.5"
-                    r="32"
-                    stroke="#1e473d"
-                    strokeWidth="9"
-                    fill="none"
-                    strokeDasharray="75 201"
-                    strokeDashoffset="0"
-                    transform="rotate(-90 42.5 42.5)"
-                  />
-                  {/* Labour segment */}
-                  <circle
-                    cx="42.5"
-                    cy="42.5"
-                    r="32"
-                    stroke="#111315"
-                    strokeWidth="9"
-                    fill="none"
-                    strokeDasharray="55 201"
-                    strokeDashoffset="-75"
-                    transform="rotate(-90 42.5 42.5)"
-                  />
-                  {/* Dyeing segment */}
-                  <circle
-                    cx="42.5"
-                    cy="42.5"
-                    r="32"
-                    stroke="#0284c7"
-                    strokeWidth="9"
-                    fill="none"
-                    strokeDasharray="40 201"
-                    strokeDashoffset="-130"
-                    transform="rotate(-90 42.5 42.5)"
-                  />
-                  {/* Others segment */}
-                  <circle
-                    cx="42.5"
-                    cy="42.5"
-                    r="32"
-                    stroke="#64748b"
-                    strokeWidth="9"
-                    fill="none"
-                    strokeDasharray="31 201"
-                    strokeDashoffset="-170"
-                    transform="rotate(-90 42.5 42.5)"
-                  />
-                </svg>
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center'
-                }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#0a0d10' }}>
-                    {selectedQuote.costBreakdown.totalDisplay}
-                  </span>
-                  <span style={{ fontSize: 8.5, color: '#94a3b8' }}>Total</span>
-                </div>
-              </div>
-
-              {/* Legend & Amounts */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, fontSize: 11 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1e473d' }} />
-                    <span style={{ color: '#475569' }}>Fabric</span>
-                  </div>
-                  <strong style={{ color: '#0a0d10' }}>{selectedQuote.costBreakdown.fabric}</strong>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#111315' }} />
-                    <span style={{ color: '#475569' }}>Labour</span>
-                  </div>
-                  <strong style={{ color: '#0a0d10' }}>{selectedQuote.costBreakdown.labour}</strong>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0284c7' }} />
-                    <span style={{ color: '#475569' }}>Dyeing</span>
-                  </div>
-                  <strong style={{ color: '#0a0d10' }}>{selectedQuote.costBreakdown.dyeing}</strong>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#64748b' }} />
-                    <span style={{ color: '#475569' }}>Others</span>
-                  </div>
-                  <strong style={{ color: '#0a0d10' }}>{selectedQuote.costBreakdown.others}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Risk Alert Box */}
+        {/* ===============================================================
+            ALL QUOTATIONS RELATED TO THE SELECTED CLIENT (CARDS VIEW)
+            =============================================================== */}
+        {quotationViewStyle === 'cards' && (
           <div style={{
-            background: '#fff1f2',
-            border: '1px solid #fecdd3',
-            borderRadius: 16,
-            padding: '10px 12px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))',
+            gap: 12
+          }}>
+            {displayedQuotations.map((quote) => {
+              const fin = calculateQuotationFinancials(quote);
+              const statusBadge = getStatusBadge(quote.status);
+              const typeBadge = getTypeBadge(quote.quotationType);
+
+              return (
+                <div
+                  key={quote.id}
+                  style={{
+                    background: '#ffffff',
+                    border: quote.status === 'finalized' ? '2px solid #86efac' : '1px solid #edf2ef',
+                    borderRadius: 14,
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{
+                        fontSize: 9.5,
+                        fontWeight: 800,
+                        background: typeBadge.bg,
+                        color: typeBadge.color,
+                        border: `1px solid ${typeBadge.border}`,
+                        padding: '2px 7px',
+                        borderRadius: 6
+                      }}>
+                        {typeBadge.label}
+                      </span>
+
+                      <span style={{
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        background: statusBadge.bg,
+                        color: statusBadge.color,
+                        border: `1px solid ${statusBadge.border}`,
+                        padding: '2px 8px',
+                        borderRadius: 9999,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <span style={{ width: 4, height: 4, borderRadius: '50%', background: statusBadge.dot }} />
+                        {statusBadge.label}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: '#164e32' }}>{quote.id}</span>
+                      <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>Order: {quote.orderId}</span>
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>
+                      {quote.typeLabel}
+                    </div>
+
+                    <div style={{
+                      background: '#f8faf9',
+                      border: '1px solid #edf2ef',
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      marginTop: 8,
+                      fontSize: 10.5,
+                      color: '#334155'
+                    }}>
+                      <div>Fabric: <strong>{quote.specs.fabricType}</strong> ({quote.specs.gsm} GSM)</div>
+                      <div style={{ marginTop: 2 }}>Weave: <strong>{quote.specs.weave}</strong> &bull; {quote.specs.finishing}</div>
+                      <div style={{ marginTop: 2 }}>Quantity: <strong>{quote.totalQuantity.toLocaleString()} {quote.quantityUnit}</strong> &bull; Due: <strong>{quote.deadlineDate}</strong></div>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div>
+                        <span style={{ fontSize: 9, color: '#64748b', display: 'block' }}>Proposed Price</span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>
+                          ₹{quote.quotedAmount.toLocaleString()}
+                        </span>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: 9, color: '#64748b', display: 'block' }}>Gross Margin</span>
+                        <span style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: fin.isPolicyCompliant ? '#16a34a' : '#dc2626'
+                        }}>
+                          {fin.marginPercent.toFixed(1)}% {fin.isPolicyCompliant ? '✓' : '⚠'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => {
+                          setActiveQuotationId(quote.id);
+                          setActiveDetailTab('overview');
+                        }}
+                        style={{
+                          flex: 1,
+                          background: '#ffffff',
+                          color: '#164e32',
+                          border: '1.5px solid #cde7d8',
+                          borderRadius: 8,
+                          padding: '5px',
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Review Details
+                      </button>
+
+                      {quote.status === 'pending_admin_approval' && (
+                        <button
+                          onClick={() => handleAdminApprove(quote.id)}
+                          style={{
+                            background: '#164e32',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '5px 10px',
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Approve
+                        </button>
+                      )}
+
+                      {quote.status === 'approved' && (
+                        <button
+                          onClick={() => handleSendToClient(quote.id)}
+                          style={{
+                            background: '#0284c7',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '5px 10px',
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Send
+                        </button>
+                      )}
+
+                      {quote.status === 'client_accepted' && (
+                        <button
+                          onClick={() => handleFinalizeQuotation(quote.id)}
+                          style={{
+                            background: '#15803d',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '5px 10px',
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Finalize
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ===================================================================
+          MODAL: QUOTATION COMPARISON MODAL
+          =================================================================== */}
+      {comparingOrderId && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1050,
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            padding: '20px 24px',
+            maxWidth: 960,
+            width: '95%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
+            border: '1.5px solid #edf2ef'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <GitCompare size={17} color="#164e32" />
+                  Quotation Comparison: Order {comparingOrderId} ({selectedClient.name})
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
+                  Comparing all commercial proposals, revisions, and alternatives for this order.
+                </p>
+              </div>
+              <button
+                onClick={() => setComparingOrderId(null)}
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 28,
+                  height: 28,
+                  cursor: 'pointer',
+                  fontWeight: 800
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {(() => {
+              const quotesToCompare = clientQuotations.filter((q) => q.orderId === comparingOrderId);
+              return (
+                <div style={{ border: '1px solid #edf2ef', borderRadius: 12, overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ef' }}>
+                        <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, width: 160, color: '#64748b' }}>Parameter</th>
+                        {quotesToCompare.map((q) => (
+                          <th key={q.id} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 800, color: '#164e32', minWidth: 200 }}>
+                            <div>{q.id} ({q.version})</div>
+                            <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500 }}>{q.typeLabel}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #f8faf9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#475569' }}>Proposal Type</td>
+                        {quotesToCompare.map((q) => (
+                          <td key={q.id} style={{ padding: '8px 12px' }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, ...getTypeBadge(q.quotationType), padding: '2px 6px', borderRadius: 4 }}>
+                              {getTypeBadge(q.quotationType).label}
+                            </span>
+                          </td>
+                        ))}
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f8faf9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#475569' }}>Fabric &amp; Yarn</td>
+                        {quotesToCompare.map((q) => (
+                          <td key={q.id} style={{ padding: '8px 12px', fontWeight: 600, color: '#111827' }}>
+                            {q.specs.fabricType} ({q.specs.yarnCount})
+                          </td>
+                        ))}
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f8faf9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#475569' }}>GSM &amp; Weave</td>
+                        {quotesToCompare.map((q) => (
+                          <td key={q.id} style={{ padding: '8px 12px' }}>
+                            <strong>{q.specs.gsm} GSM</strong> &bull; {q.specs.weave}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f8faf9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#475569' }}>Quantity &amp; Deadline</td>
+                        {quotesToCompare.map((q) => (
+                          <td key={q.id} style={{ padding: '8px 12px' }}>
+                            {q.totalQuantity.toLocaleString()} {q.quantityUnit} &bull; {q.deadlineDate}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f8faf9', background: '#fafbfc' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#475569' }}>Estimated Cost</td>
+                        {quotesToCompare.map((q) => (
+                          <td key={q.id} style={{ padding: '8px 12px', fontWeight: 600, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>
+                            ₹{q.costBreakdown.totalCost.toLocaleString()}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f8faf9', background: '#f8fdf9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#164e32' }}>Proposed Price</td>
+                        {quotesToCompare.map((q) => (
+                          <td key={q.id} style={{ padding: '8px 12px', fontWeight: 800, color: '#164e32', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+                            ₹{q.quotedAmount.toLocaleString()}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f8faf9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#475569' }}>Profit Margin %</td>
+                        {quotesToCompare.map((q) => {
+                          const fin = calculateQuotationFinancials(q);
+                          return (
+                            <td key={q.id} style={{ padding: '8px 12px' }}>
+                              <span style={{
+                                fontWeight: 800,
+                                color: fin.isPolicyCompliant ? '#16a34a' : '#dc2626',
+                                background: fin.isPolicyCompliant ? '#ecfdf5' : '#fee2e2',
+                                padding: '2px 6px',
+                                borderRadius: 4
+                              }}>
+                                {fin.marginPercent.toFixed(1)}% {fin.isPolicyCompliant ? '(≥15%)' : '(<15% Alert)'}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '10px 12px', fontWeight: 700, color: '#475569' }}>Actions</td>
+                        {quotesToCompare.map((q) => (
+                          <td key={q.id} style={{ padding: '10px 12px' }}>
+                            <button
+                              onClick={() => {
+                                setComparingOrderId(null);
+                                setActiveQuotationId(q.id);
+                                setActiveDetailTab('overview');
+                              }}
+                              style={{
+                                background: '#164e32',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 6,
+                                padding: '4px 10px',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Review Details
+                            </button>
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          MODAL: DEDICATED INDIVIDUAL QUOTATION REVIEW WORKSPACE
+          =================================================================== */}
+      {activeQuotation && activeFinancials && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.55)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            padding: '20px 24px',
+            maxWidth: 960,
+            width: '95%',
+            maxHeight: '92vh',
+            overflowY: 'auto',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
+            border: '1.5px solid #edf2ef',
             display: 'flex',
             flexDirection: 'column',
-            gap: 4
+            gap: 12
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#be123c', fontWeight: 700, fontSize: 11 }}>
-              <AlertTriangle size={13} color="#e11d48" />
-              <span>Risk Alert</span>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              borderBottom: '1px solid #f1f5f9',
+              paddingBottom: 10
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: '#111827' }}>{activeQuotation.id}</span>
+                  <span style={{ fontSize: 10, background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>{activeQuotation.version}</span>
+                  <span style={{ fontSize: 10, ...getTypeBadge(activeQuotation.quotationType), padding: '2px 7px', borderRadius: 6, fontWeight: 700 }}>{getTypeBadge(activeQuotation.quotationType).label}</span>
+                  <span style={{ fontSize: 10, ...getStatusBadge(activeQuotation.status), padding: '2px 8px', borderRadius: 9999, fontWeight: 700 }}>{getStatusBadge(activeQuotation.status).label}</span>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Client: <strong>{activeQuotation.clientName}</strong> &bull; Order: <strong>{activeQuotation.orderId}</strong> ({activeQuotation.orderTitle})
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: 9.5, color: '#64748b', display: 'block' }}>Proposed Selling Price</span>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: '#164e32' }}>₹{activeQuotation.quotedAmount.toLocaleString()}</span>
+                </div>
+                <button
+                  onClick={() => setActiveQuotationId(null)}
+                  style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', fontWeight: 800 }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
-            <p style={{ fontSize: 10.5, color: '#9f1239', margin: 0, lineHeight: 1.4 }}>
-              {selectedQuote.riskAlert}
-            </p>
-          </div>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto', paddingTop: 6 }}>
-            <button
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                fontSize: 11,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: 9999,
-                color: '#0a0d10',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-              onClick={() => setIsEditing(!isEditing)}
-            >
-              <Edit3 size={12} />
-              <span>{isEditing ? 'Cancel' : 'Edit'}</span>
-            </button>
+            {/* Sub-Tabs */}
+            <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #edf2ef', paddingBottom: 6, overflowX: 'auto' }}>
+              {[
+                { key: 'overview', label: '1. Specifications', icon: Layers },
+                { key: 'cost', label: '2. Cost Breakdown', icon: DollarSign },
+                { key: 'profit', label: '3. Profit & Policy', icon: TrendingUp },
+                { key: 'ai', label: '4. AI Agent Advisory', icon: Sparkles },
+                { key: 'negotiation', label: `5. Negotiation (${activeQuotation.negotiations.length})`, icon: MessageSquare },
+                { key: 'history', label: '6. Audit Trail', icon: History }
+              ].map((tab) => {
+                const isSelected = activeDetailTab === tab.key;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveDetailTab(tab.key as any)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      background: isSelected ? '#164e32' : '#ffffff',
+                      color: isSelected ? '#ffffff' : '#64748b',
+                      border: isSelected ? '1px solid #164e32' : '1px solid #e2e8f0',
+                      borderRadius: 9999,
+                      padding: '5px 12px',
+                      fontSize: 10.5,
+                      fontWeight: isSelected ? 700 : 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Icon size={12} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
 
-            <button
-              style={{
-                flex: 1.2,
-                padding: '8px 12px',
-                fontSize: 11,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                background: '#111315',
-                border: 'none',
-                borderRadius: 9999,
-                color: '#ffffff',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-              onClick={handleApprove}
-            >
-              <Check size={13} />
-              <span>Approve</span>
-            </button>
+            {/* TAB 1: PRODUCT SPECIFICATIONS */}
+            {activeDetailTab === 'overview' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 10.5 }}>
+                  <div>Fabric: <strong>{activeQuotation.specs.fabricType}</strong></div>
+                  <div>Yarn Count: <strong>{activeQuotation.specs.yarnCount}</strong></div>
+                  <div>Weight: <strong>{activeQuotation.specs.gsm} GSM</strong></div>
+                  <div>Weave: <strong>{activeQuotation.specs.weave}</strong></div>
+                  <div>Finishing: <strong>{activeQuotation.specs.finishing}</strong></div>
+                  <div>Quantity: <strong>{activeQuotation.totalQuantity.toLocaleString()} {activeQuotation.quantityUnit}</strong></div>
+                  <div>Deadline: <strong>{activeQuotation.deadlineDate}</strong></div>
+                  <div>Expiry: <strong>{activeQuotation.expiryDate}</strong></div>
+                </div>
 
-            <button
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                fontSize: 11,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                background: '#fee2e2',
-                border: '1px solid #fecdd3',
-                borderRadius: 9999,
-                color: '#dc2626',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-              onClick={handleReject}
-            >
-              <X size={12} />
-              <span>Reject</span>
-            </button>
+                <div style={{ border: '1px solid #edf2ef', borderRadius: 10, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
+                    <thead>
+                      <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ef', textAlign: 'left', color: '#64748b' }}>
+                        <th style={{ padding: '8px 10px' }}>Design / SKU</th>
+                        <th style={{ padding: '8px 10px' }}>Category</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Quantity</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Unit Price</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Total Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeQuotation.products.map((p) => (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #f8faf9' }}>
+                          <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>
+                            {p.name} <span style={{ color: '#94a3b8', fontSize: 9 }}>({p.designCode})</span>
+                          </td>
+                          <td style={{ padding: '8px 10px', color: '#475569' }}>{p.category}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{p.quantity.toLocaleString()} {p.unit}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#64748b' }}>₹{p.unitPrice.toFixed(2)}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#164e32' }}>₹{p.totalPrice.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: COST BREAKDOWN */}
+            {activeDetailTab === 'cost' && (
+              <div style={{ border: '1px solid #edf2ef', borderRadius: 10, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ef', color: '#64748b', textAlign: 'left' }}>
+                      <th style={{ padding: '8px 12px' }}>Cost Component</th>
+                      <th style={{ padding: '8px 12px' }}>Calculation Basis</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #f8faf9' }}><td style={{ padding: '8px 12px', fontWeight: 700 }}>Fabric / Yarn</td><td style={{ padding: '8px 12px', color: '#475569' }}>{activeQuotation.costBreakdown.fabricYarnBasis}</td><td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>₹{activeQuotation.costBreakdown.fabricYarn.toLocaleString()}</td></tr>
+                    <tr style={{ borderBottom: '1px solid #f8faf9' }}><td style={{ padding: '8px 12px', fontWeight: 700 }}>Dyeing &amp; Processing</td><td style={{ padding: '8px 12px', color: '#475569' }}>{activeQuotation.costBreakdown.dyeingProcessingBasis}</td><td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>₹{activeQuotation.costBreakdown.dyeingProcessing.toLocaleString()}</td></tr>
+                    <tr style={{ borderBottom: '1px solid #f8faf9' }}><td style={{ padding: '8px 12px', fontWeight: 700 }}>Labour</td><td style={{ padding: '8px 12px', color: '#475569' }}>{activeQuotation.costBreakdown.labourBasis}</td><td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>₹{activeQuotation.costBreakdown.labour.toLocaleString()}</td></tr>
+                    <tr style={{ borderBottom: '1px solid #f8faf9' }}><td style={{ padding: '8px 12px', fontWeight: 700 }}>Overhead</td><td style={{ padding: '8px 12px', color: '#475569' }}>{activeQuotation.costBreakdown.overheadBasis}</td><td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>₹{activeQuotation.costBreakdown.overhead.toLocaleString()}</td></tr>
+                    <tr style={{ borderBottom: '1px solid #f8faf9' }}><td style={{ padding: '8px 12px', fontWeight: 700 }}>Wastage Allowance</td><td style={{ padding: '8px 12px', color: '#475569' }}>{activeQuotation.costBreakdown.wastageBasis}</td><td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>₹{activeQuotation.costBreakdown.wastage.toLocaleString()}</td></tr>
+                    <tr style={{ borderBottom: '1px solid #f8faf9' }}><td style={{ padding: '8px 12px', fontWeight: 700 }}>Price Risk Buffer</td><td style={{ padding: '8px 12px', color: '#475569' }}>{activeQuotation.costBreakdown.priceRiskBufferBasis}</td><td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>₹{activeQuotation.costBreakdown.priceRiskBuffer.toLocaleString()}</td></tr>
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#f8faf9', borderTop: '2px solid #e2e8f0', fontWeight: 800 }}>
+                      <td colSpan={2} style={{ padding: '10px 12px' }}>Total Estimated Cost</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#164e32', fontSize: 13 }}>₹{activeFinancials.totalCost.toLocaleString()}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            {/* TAB 3: PROFIT & POLICY */}
+            {activeDetailTab === 'profit' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ef' }}>
+                    <span style={{ fontSize: 9.5, color: '#64748b' }}>Estimated Cost</span>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: '#111827' }}>₹{activeFinancials.totalCost.toLocaleString()}</div>
+                  </div>
+                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ef' }}>
+                    <span style={{ fontSize: 9.5, color: '#64748b' }}>Selling Price</span>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: '#164e32' }}>₹{activeQuotation.quotedAmount.toLocaleString()}</div>
+                  </div>
+                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ef' }}>
+                    <span style={{ fontSize: 9.5, color: '#64748b' }}>Expected Profit</span>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: activeFinancials.expectedProfit >= 0 ? '#059669' : '#dc2626' }}>
+                      ₹{activeFinancials.expectedProfit.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  background: activeFinancials.isPolicyCompliant ? '#f0fdf4' : '#fef2f2',
+                  border: activeFinancials.isPolicyCompliant ? '1.5px solid #bbf7d0' : '1.5px solid #fecaca',
+                  borderRadius: 12,
+                  padding: '12px 16px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {activeFinancials.isPolicyCompliant ? <CheckCircle2 size={16} color="#16a34a" /> : <AlertTriangle size={16} color="#dc2626" />}
+                      <span style={{ fontSize: 12, fontWeight: 800, color: activeFinancials.isPolicyCompliant ? '#166534' : '#991b1b' }}>
+                        Gross Margin: {activeFinancials.marginPercent.toFixed(1)}% &bull;{' '}
+                        {activeFinancials.isPolicyCompliant ? 'Policy Compliant (≥ 15.0%)' : 'Below Minimum 15.0% Policy – Admin Attention Required'}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b' }}>Policy Threshold: 15.0%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: AI AGENT ADVISORY */}
+            {activeDetailTab === 'ai' && (
+              <div style={{ background: '#f8faf9', borderRadius: 12, padding: '12px 16px', border: '1px solid #edf2ef' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#164e32', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Sparkles size={13} /> AI Quotation Agent v2.4 Recommendations
+                  </span>
+                  <span style={{ fontSize: 9.5, background: '#eaf6ef', color: '#164e32', padding: '2px 8px', borderRadius: 9999, fontWeight: 700 }}>
+                    Confidence: {activeQuotation.aiRecommendation.confidenceScore}%
+                  </span>
+                </div>
+                <div style={{ fontSize: 10.5, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div><strong>Suggested Selling Price:</strong> ₹{activeQuotation.aiRecommendation.suggestedPrice.toLocaleString()} ({activeQuotation.aiRecommendation.suggestedMargin.toFixed(1)}% margin)</div>
+                  <div><strong>Cost Assumptions:</strong> {activeQuotation.aiRecommendation.costAssumptions}</div>
+                  <div><strong>Material Wastage:</strong> {activeQuotation.aiRecommendation.wastageAssumptions}</div>
+                  <div><strong>Volatility Considerations:</strong> {activeQuotation.aiRecommendation.volatilityConsiderations}</div>
+                  <div><strong>Delivery Feasibility:</strong> {activeQuotation.aiRecommendation.deliveryFeasibility}</div>
+                  <div><strong>Financial Risk:</strong> {activeQuotation.aiRecommendation.financialRisks}</div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: NEGOTIATION */}
+            {activeDetailTab === 'negotiation' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 800, color: '#111827' }}>Client Negotiation &amp; Concession History</span>
+                  <button
+                    onClick={() => setShowDiscountModal(true)}
+                    style={{ background: '#ffffff', color: '#b45309', border: '1.5px solid #fde68a', borderRadius: 9999, padding: '4px 12px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    + Record Concession / Discount Request
+                  </button>
+                </div>
+                {activeQuotation.negotiations.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: 11 }}>No negotiations logged.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {activeQuotation.negotiations.map((neg) => (
+                      <div key={neg.id} style={{ background: '#f8faf9', border: '1px solid #edf2ef', borderRadius: 10, padding: '10px 12px', fontSize: 10.5 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                          <span>{neg.date}</span>
+                          <span style={{ fontWeight: 800, color: '#b45309' }}>{neg.status.replace('_', ' ').toUpperCase()}</span>
+                        </div>
+                        <div style={{ marginTop: 4, color: '#111827' }}><strong>Client Request:</strong> {neg.clientRequest}</div>
+                        <div style={{ marginTop: 2, color: '#164e32' }}><strong>Admin Decision:</strong> {neg.adminResponse}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 6: AUDIT TRAIL */}
+            {activeDetailTab === 'history' && (
+              <div style={{ border: '1px solid #edf2ef', borderRadius: 10, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
+                  <thead>
+                    <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ef', color: '#64748b', textAlign: 'left' }}>
+                      <th style={{ padding: '8px 10px', width: 130 }}>Timestamp</th>
+                      <th style={{ padding: '8px 10px', width: 140 }}>Actor</th>
+                      <th style={{ padding: '8px 10px', width: 130 }}>Action</th>
+                      <th style={{ padding: '8px 10px' }}>Comments / Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeQuotation.history.map((h) => (
+                      <tr key={h.id} style={{ borderBottom: '1px solid #f8faf9' }}>
+                        <td style={{ padding: '8px 10px', color: '#64748b' }}>{h.timestamp}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: 600 }}>{h.actor}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: 700, color: '#164e32' }}>{h.action}</td>
+                        <td style={{ padding: '8px 10px', color: '#334155' }}>{h.comments || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Modal Bottom Governance Action Bar */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderTop: '1px solid #f1f5f9',
+              paddingTop: 10,
+              flexWrap: 'wrap',
+              gap: 8
+            }}>
+              <div style={{ fontSize: 10, color: '#64748b', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <ShieldAlert size={13} color="#164e32" />
+                <span>Binding Rule: Only an approved quotation can be sent to clients.</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                {activeQuotation.status !== 'rejected' && (
+                  <button
+                    onClick={() => {
+                      setRejectionReasonInput('');
+                      setShowRejectModal(true);
+                    }}
+                    style={{ background: '#ffffff', color: '#dc2626', border: '1.5px solid #fca5a5', borderRadius: 9999, padding: '6px 14px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Reject
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setRevisionComments('');
+                    setShowRevisionModal(true);
+                  }}
+                  style={{ background: '#ffffff', color: '#d97706', border: '1.5px solid #fde68a', borderRadius: 9999, padding: '6px 14px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Request Revision
+                </button>
+
+                {activeQuotation.status !== 'approved' && activeQuotation.status !== 'client_accepted' && activeQuotation.status !== 'finalized' && (
+                  <button
+                    onClick={() => handleAdminApprove(activeQuotation.id)}
+                    style={{ background: '#164e32', color: '#ffffff', border: 'none', borderRadius: 9999, padding: '6px 16px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Approve Quotation
+                  </button>
+                )}
+
+                {activeQuotation.status === 'approved' && (
+                  <button
+                    onClick={() => handleSendToClient(activeQuotation.id)}
+                    style={{ background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: 9999, padding: '6px 16px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Send to Client
+                  </button>
+                )}
+
+                {activeQuotation.status === 'awaiting_client_response' && (
+                  <button
+                    onClick={() => handleRecordClientAcceptance(activeQuotation.id)}
+                    style={{ background: '#047857', color: '#ffffff', border: 'none', borderRadius: 9999, padding: '6px 16px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Record Client Acceptance
+                  </button>
+                )}
+
+                {activeQuotation.status === 'client_accepted' && (
+                  <button
+                    onClick={() => handleFinalizeQuotation(activeQuotation.id)}
+                    style={{ background: '#15803d', color: '#ffffff', border: 'none', borderRadius: 9999, padding: '6px 18px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Designate as Finalized Agreement
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ===================================================================
+          MODAL: REQUEST REVISION
+          =================================================================== */}
+      {showRevisionModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
+          <div style={{ background: '#ffffff', borderRadius: 16, padding: '20px', maxWidth: 460, width: '90%' }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 800 }}>Request Quotation Revision</h4>
+            <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 10px' }}>Enter instructions for the AI Quotation Agent:</p>
+            <textarea
+              rows={3}
+              value={revisionComments}
+              onChange={(e) => setRevisionComments(e.target.value)}
+              placeholder="E.g., Adjust price to meet 15% threshold..."
+              style={{ width: '100%', borderRadius: 8, border: '1px solid #d1d5db', padding: '8px', fontSize: 11 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 10 }}>
+              <button onClick={() => setShowRevisionModal(false)} style={{ background: '#f1f5f9', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 11 }}>Cancel</button>
+              <button onClick={handleConfirmRevision} style={{ background: '#d97706', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Submit</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          MODAL: REJECT QUOTATION
+          =================================================================== */}
+      {showRejectModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
+          <div style={{ background: '#ffffff', borderRadius: 16, padding: '20px', maxWidth: 460, width: '90%' }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 800, color: '#dc2626' }}>Reject Quotation</h4>
+            <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 10px' }}>Enter rejection reason for audit trail:</p>
+            <textarea
+              rows={3}
+              value={rejectionReasonInput}
+              onChange={(e) => setRejectionReasonInput(e.target.value)}
+              placeholder="E.g., Margin below 15% threshold..."
+              style={{ width: '100%', borderRadius: 8, border: '1px solid #fca5a5', padding: '8px', fontSize: 11 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 10 }}>
+              <button onClick={() => setShowRejectModal(false)} style={{ background: '#f1f5f9', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 11 }}>Cancel</button>
+              <button onClick={handleConfirmReject} style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Confirm Rejection</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          MODAL: DISCOUNT CONCESSION
+          =================================================================== */}
+      {showDiscountModal && activeQuotation && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
+          <div style={{ background: '#ffffff', borderRadius: 16, padding: '20px', maxWidth: 480, width: '90%' }}>
+            <h4 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 800, color: '#b45309' }}>Authorize Client Concession / Discount</h4>
+            <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 12px' }}>Only Managing Director John Doe has authority to authorize concessions.</p>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', display: 'block' }}>Concession %</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={discountConcessionInput}
+                  onChange={(e) => setDiscountConcessionInput(e.target.value)}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12, fontWeight: 700 }}
+                />
+              </div>
+              <div style={{ flex: 2 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', display: 'block' }}>Resulting New Price</label>
+                <div style={{ padding: '6px 8px', background: '#f8faf9', borderRadius: 6, border: '1px solid #edf2ef', fontSize: 13, fontWeight: 800, color: '#164e32' }}>
+                  ₹{Math.round(activeQuotation.quotedAmount * (1 - (parseFloat(discountConcessionInput) || 0) / 100)).toLocaleString()}
+                </div>
+              </div>
+            </div>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', display: 'block' }}>Admin Decision Notes</label>
+            <textarea
+              rows={2}
+              value={discountNotes}
+              onChange={(e) => setDiscountNotes(e.target.value)}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 11 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 12 }}>
+              <button onClick={() => setShowDiscountModal(false)} style={{ background: '#f1f5f9', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 11 }}>Cancel</button>
+              <button onClick={handleConfirmConcession} style={{ background: '#164e32', color: '#ffffff', border: 'none', padding: '6px 16px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                Authorize &amp; Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMessage && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          background: '#111827',
+          color: '#ffffff',
+          padding: '10px 18px',
+          borderRadius: 12,
+          fontSize: 12,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          zIndex: 1300
+        }}>
+          <Sparkles size={15} color="#86efac" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 };
+
+export default QuotationApprovalsModule;

@@ -166,6 +166,27 @@ export interface PaymentRecord {
   status: 'pending' | 'received' | 'overdue';
 }
 
+export interface ProductionTimelineStage {
+  id: string;
+  name: string;
+  status: 'completed' | 'in_progress' | 'pending';
+  dateOrDetails: string;
+  notes?: string;
+}
+
+export interface OrderItemProduct {
+  id: string;
+  name: string;
+  designCode: string;
+  category: string;
+  quantityPieces: number;
+  progressPercent: number;
+  imageUrl?: string;
+  riskStatus?: 'on_track' | 'at_risk' | 'delayed';
+  riskReason?: string;
+  timeline: ProductionTimelineStage[];
+}
+
 export interface Order {
   id: string;
   clientName: string;
@@ -185,6 +206,9 @@ export interface Order {
   deadlineDate: string;
   currentPhase: string;
   status: OrderLifecycleStatus;
+  riskStatus?: 'on_track' | 'at_risk' | 'early_production' | 'just_started';
+  riskReason?: string;
+  items?: OrderItemProduct[];
   feasibility?: FeasibilityReport;
   quotation?: Quotation;
   priceRevision?: PriceRevision;

@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   ArrowUpRight,
   TrendingUp,
-  Video,
-  Plus,
-  Play,
-  Pause,
-  Square,
+  AlertTriangle,
+  ArrowRight,
+  Package,
+  Layers,
+  Activity,
   CheckCircle2,
-  Clock
+  Clock,
+  ShieldAlert,
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 import type { Order, AppUser, MarketCommodity, AdminNavTab, AuditEntry } from '../../types';
 
@@ -25,30 +28,43 @@ interface AdminDashboardModuleProps {
 }
 
 export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
-  onNavigateTab
+  orders,
+  onNavigateTab,
+  onSelectOrder,
+  onOpenOrderModal,
+  onApproveQuotation
 }) => {
-  // Timer State for the Donezo Time Tracker card
-  const [seconds, setSeconds] = useState<number>(5048); // 01:24:08 initial
-  const [timerRunning, setTimerRunning] = useState<boolean>(true);
-  const [meetingJoined, setMeetingJoined] = useState<boolean>(false);
+  // Time filter state for Revenue vs Profit Analytics
+  const [analyticsFilter, setAnalyticsFilter] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
+  const [hoveredMonth, setHoveredMonth] = useState<string | null>('Oct');
+  const [quickApprovedId, setQuickApprovedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (timerRunning) {
-      interval = setInterval(() => {
-        setSeconds((prev) => prev + 1);
-      }, 1000);
+  // Financial chart series data
+  const financialData = [
+    { period: 'May', rev: 19.2, profit: 4.2, exp: 4.5, x: 20, revY: 62, profY: 26 },
+    { period: 'Jun', rev: 21.0, profit: 4.8, exp: 5.0, x: 60, revY: 68, profY: 30 },
+    { period: 'Jul', rev: 23.4, profit: 5.3, exp: 5.5, x: 100, revY: 74, profY: 34 },
+    { period: 'Aug', rev: 25.1, profit: 5.9, exp: 6.0, x: 140, revY: 80, profY: 38 },
+    { period: 'Sep', rev: 26.3, profit: 6.2, exp: 6.4, x: 180, revY: 84, profY: 41 },
+    { period: 'Oct', rev: 28.5, profit: 6.8, exp: 7.0, x: 220, revY: 92, profY: 46 }
+  ];
+
+  // Delivery alerts click handler
+  const handleDeliveryAlertClick = (orderId: string) => {
+    const matched = orders.find((o) => o.id === orderId);
+    if (matched && onOpenOrderModal) {
+      onOpenOrderModal(matched);
+    } else if (onSelectOrder) {
+      onSelectOrder(orderId);
+      onNavigateTab('orders');
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [timerRunning]);
+  };
 
-  const formatTimer = (totalSec: number) => {
-    const hrs = Math.floor(totalSec / 3600);
-    const mins = Math.floor((totalSec % 3600) / 60);
-    const secs = totalSec % 60;
-    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const handleQuickApprove = (orderId: string) => {
+    setQuickApprovedId(orderId);
+    if (onApproveQuotation) {
+      onApproveQuotation(orderId);
+    }
   };
 
   return (
@@ -63,9 +79,11 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
       padding: '2px 4px'
     }}>
       {/* ===================================================================
-          ROW 1: 4 KPI CARDS (Donezo Signature Top Bar)
-          Card 1: Solid Dark Forest Green
-          Cards 2, 3, 4: Pure White with Outline Circular Arrow
+          ROW 1: 4 KPI CARDS (Executive Performance Bar)
+          Card 1: Active Orders (Solid Dark Forest Green Hero Card)
+          Card 2: Completed Orders (Crisp White Card)
+          Card 3: Orders in Production (Crisp White Card)
+          Card 4: At-Risk Orders (White Card with subtle Red treatment)
           =================================================================== */}
       <div style={{
         display: 'grid',
@@ -73,9 +91,10 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
         gap: 12,
         flexShrink: 0
       }}>
-        {/* KPI CARD 1: TOTAL PROJECTS (Forest Green Solid Hero Card) */}
+        {/* KPI CARD 1: ACTIVE ORDERS (Dark Forest Green Solid Hero Card) */}
         <div
           onClick={() => onNavigateTab('orders')}
+          title="Click to view all Active Orders"
           style={{
             background: 'linear-gradient(135deg, #134e35 0%, #1a5e41 100%)',
             borderRadius: 18,
@@ -91,7 +110,7 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#e8f5ec', letterSpacing: '-0.2px' }}>
-              Total Projects
+              Active Orders
             </span>
             <div style={{
               width: 26,
@@ -108,17 +127,18 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
             </div>
           </div>
           <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
-            24
+            124
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#86efac', fontWeight: 600 }}>
-            <TrendingUp size={12} strokeWidth={2.5} />
-            <span>Increased from last month</span>
+            <Package size={12} strokeWidth={2.5} />
+            <span>Currently being processed</span>
           </div>
         </div>
 
-        {/* KPI CARD 2: ENDED PROJECTS */}
+        {/* KPI CARD 2: COMPLETED ORDERS */}
         <div
           onClick={() => onNavigateTab('orders')}
+          title="Click to inspect completed orders"
           style={{
             background: '#ffffff',
             border: '1px solid #edf2ef',
@@ -133,7 +153,7 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', letterSpacing: '-0.2px' }}>
-              Ended Projects
+              Completed Orders
             </span>
             <div style={{
               width: 26,
@@ -149,17 +169,18 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
             </div>
           </div>
           <div style={{ fontSize: 34, fontWeight: 800, color: '#111827', letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
-            10
+            48
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#64748b', fontWeight: 600 }}>
-            <TrendingUp size={12} strokeWidth={2.5} color="#164e32" />
-            <span>Increased from last month</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#164e32', fontWeight: 700 }}>
+            <TrendingUp size={12} strokeWidth={2.5} />
+            <span>+12.4% vs last month</span>
           </div>
         </div>
 
-        {/* KPI CARD 3: RUNNING PROJECTS */}
+        {/* KPI CARD 3: ORDERS IN PRODUCTION */}
         <div
           onClick={() => onNavigateTab('production')}
+          title="Click to track live production stages"
           style={{
             background: '#ffffff',
             border: '1px solid #edf2ef',
@@ -174,7 +195,7 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', letterSpacing: '-0.2px' }}>
-              Running Projects
+              Orders in Production
             </span>
             <div style={{
               width: 26,
@@ -190,61 +211,63 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
             </div>
           </div>
           <div style={{ fontSize: 34, fontWeight: 800, color: '#111827', letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
-            12
+            58
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#64748b', fontWeight: 600 }}>
-            <TrendingUp size={12} strokeWidth={2.5} color="#164e32" />
-            <span>Increased from last month</span>
+            <Layers size={12} strokeWidth={2.5} color="#164e32" />
+            <span>Across six production stages</span>
           </div>
         </div>
 
-        {/* KPI CARD 4: PENDING PROJECT */}
+        {/* KPI CARD 4: AT-RISK ORDERS (Subtle Red Treatment) */}
         <div
-          onClick={() => onNavigateTab('quotations')}
+          onClick={() => onNavigateTab('production')}
+          title="Click to view all At-Risk Orders requiring intervention"
           style={{
             background: '#ffffff',
-            border: '1px solid #edf2ef',
+            border: '1px solid #fecaca',
             borderRadius: 18,
             padding: '14px 16px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             cursor: 'pointer',
-            boxShadow: '0 1px 6px rgba(0,0,0,0.02)'
+            boxShadow: '0 1px 6px rgba(220, 38, 38, 0.04)'
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', letterSpacing: '-0.2px' }}>
-              Pending Project
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', letterSpacing: '-0.2px' }}>
+              At-Risk Orders
             </span>
             <div style={{
               width: 26,
               height: 26,
               borderRadius: '50%',
-              border: '1.5px solid #d1d5db',
+              background: '#fef2f2',
+              border: '1.5px solid #fca5a5',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#111827'
+              color: '#dc2626'
             }}>
-              <ArrowUpRight size={14} strokeWidth={2.2} />
+              <AlertTriangle size={13} strokeWidth={2.5} />
             </div>
           </div>
-          <div style={{ fontSize: 34, fontWeight: 800, color: '#111827', letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
-            2
+          <div style={{ fontSize: 34, fontWeight: 800, color: '#dc2626', letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
+            06
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#64748b', fontWeight: 600 }}>
-            <Clock size={12} strokeWidth={2.5} color="#64748b" />
-            <span>On Discuss</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#dc2626', fontWeight: 600 }}>
+            <ShieldAlert size={12} strokeWidth={2.5} />
+            <span>Requires Admin intervention</span>
           </div>
         </div>
       </div>
 
       {/* ===================================================================
           ROW 2: MIDDLE ROW (3 COLUMNS)
-          Col 1 (~44%): Project Analytics (Pill Bar Chart with Hatched Stripes & 74% circle)
-          Col 2 (~28%): Reminders (Meeting Card with Green Pill Button)
-          Col 3 (~28%): Project (5 Items with Colorful Geometric Icons)
+          Col 1 (~44%): Revenue vs Profit Analytics (Line Chart with Filter)
+          Col 2 (~28%): Admin Action Centre (4 Pending Approvals & Executions)
+          Col 3 (~28%): Delivery & Order Alerts (Top 3 Urgent Delivery Bottlenecks)
           =================================================================== */}
       <div style={{
         display: 'grid',
@@ -253,7 +276,10 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
         flex: 1.15,
         minHeight: 0
       }}>
-        {/* CARD 1: PROJECT ANALYTICS (Donezo Capsule Pillars Bar Chart) */}
+        {/* =================================================================
+            COLUMN A: REVENUE VS PROFIT ANALYTICS
+            Clean Line Chart: Dark Green (Revenue) & Light Green (Profit)
+            ================================================================= */}
         <div style={{
           background: '#ffffff',
           borderRadius: 20,
@@ -265,95 +291,168 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
           boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
           minHeight: 0
         }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-            Project Analytics
-          </div>
+          {/* Header with Title, Legend & Time Filter */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
+                Revenue vs Profit Analytics
+              </div>
+              <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500 }}>
+                Monthly Revenue: ₹28.5L &bull; Actual Profit: ₹6.8L (23.8%)
+              </div>
+            </div>
 
-          {/* 7 Capsule Pillars Chart */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            flex: 1,
-            padding: '10px 8px 4px',
-            position: 'relative'
-          }}>
-            {[
-              { day: 'S', height: 48, type: 'hatched' },
-              { day: 'M', height: 72, type: 'dark_green' },
-              { day: 'T', height: 62, type: 'mint_badge', badge: '74%' },
-              { day: 'W', height: 92, type: 'forest_green' },
-              { day: 'T', height: 76, type: 'hatched' },
-              { day: 'F', height: 58, type: 'hatched' },
-              { day: 'S', height: 66, type: 'hatched' }
-            ].map((col, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 8,
-                  height: '100%',
-                  justifyContent: 'flex-end',
-                  position: 'relative'
-                }}
-              >
-                {/* Floating percentage badge above Tuesday pill */}
-                {col.type === 'mint_badge' && (
-                  <div style={{
-                    position: 'absolute',
-                    top: `calc(100% - ${col.height}% - 34px)`,
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 9.5,
-                    fontWeight: 800,
-                    color: '#111827',
-                    zIndex: 5
-                  }}>
-                    {col.badge}
-                  </div>
-                )}
-
-                {/* Capsule Rounded Pillar */}
-                <div
-                  style={{
-                    width: 28,
-                    height: `${col.height}%`,
-                    borderRadius: 9999,
-                    background:
-                      col.type === 'forest_green'
-                        ? '#134e35'
-                        : col.type === 'dark_green'
-                        ? '#1e6849'
-                        : col.type === 'mint_badge'
-                        ? '#52b788'
-                        : 'repeating-linear-gradient(135deg, #cbd5e1 0px, #cbd5e1 2px, #f1f5f9 2px, #f1f5f9 6px)',
-                    transition: 'height 0.3s ease'
-                  }}
-                />
-
-                {/* Bottom Day Label */}
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: '#94a3b8'
-                }}>
-                  {col.day}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Legend */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 9.5, fontWeight: 600 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#134e35' }}>
+                  <span style={{ width: 8, height: 3, borderRadius: 2, background: '#134e35' }} />
+                  Revenue
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#059669' }}>
+                  <span style={{ width: 8, height: 3, borderRadius: 2, background: '#22c55e' }} />
+                  Profit
                 </span>
               </div>
-            ))}
+
+              {/* Time Filter Pills */}
+              <div style={{
+                display: 'flex',
+                background: '#f1f5f9',
+                borderRadius: 9999,
+                padding: '2px',
+                gap: 2
+              }}>
+                {(['monthly', 'quarterly', 'yearly'] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setAnalyticsFilter(filter)}
+                    style={{
+                      background: analyticsFilter === filter ? '#ffffff' : 'transparent',
+                      color: analyticsFilter === filter ? '#134e35' : '#64748b',
+                      fontWeight: analyticsFilter === filter ? 800 : 500,
+                      border: 'none',
+                      borderRadius: 9999,
+                      padding: '2px 8px',
+                      fontSize: 9.5,
+                      cursor: 'pointer',
+                      boxShadow: analyticsFilter === filter ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      textTransform: 'capitalize'
+                    }}
+                  >
+                    {filter === 'monthly' ? 'Monthly' : filter === 'quarterly' ? 'Quarterly' : 'Yearly'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Clean Multi-Series Line Chart (Dark Green & Light Green) */}
+          <div style={{
+            position: 'relative',
+            flex: 1,
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            paddingTop: 8
+          }}>
+            <svg
+              viewBox="0 0 240 100"
+              style={{ width: '100%', height: '88px', overflow: 'visible' }}
+            >
+              <defs>
+                <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#134e35" stopOpacity="0.16" />
+                  <stop offset="100%" stopColor="#134e35" stopOpacity="0.0" />
+                </linearGradient>
+                <linearGradient id="profitFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22c55e" stopOpacity="0.16" />
+                  <stop offset="100%" stopColor="#22c55e" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              {/* Grid guide lines */}
+              <line x1="10" y1="20" x2="230" y2="20" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+              <line x1="10" y1="50" x2="230" y2="50" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+              <line x1="10" y1="80" x2="230" y2="80" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+
+              {/* Revenue Area Fill & Line (Dark Green #134e35) */}
+              <path
+                d="M 20 62 L 60 56 L 100 48 L 140 42 L 180 36 L 220 22 L 220 85 L 20 85 Z"
+                fill="url(#revenueFill)"
+              />
+              <path
+                d="M 20 62 L 60 56 L 100 48 L 140 42 L 180 36 L 220 22"
+                fill="none"
+                stroke="#134e35"
+                strokeWidth="2.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              {/* Profit Area Fill & Line (Light Green #22c55e) */}
+              <path
+                d="M 20 78 L 60 74 L 100 68 L 140 64 L 180 60 L 220 54 L 220 85 L 20 85 Z"
+                fill="url(#profitFill)"
+              />
+              <path
+                d="M 20 78 L 60 74 L 100 68 L 140 64 L 180 60 L 220 54"
+                fill="none"
+                stroke="#22c55e"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              {/* Expected Profit Projected Dashed Segment */}
+              <line x1="180" y1="58" x2="220" y2="50" stroke="#86efac" strokeWidth="2" strokeDasharray="3 2" />
+
+              {/* Data points */}
+              {financialData.map((d) => (
+                <g key={d.period} onMouseEnter={() => setHoveredMonth(d.period)} style={{ cursor: 'pointer' }}>
+                  {/* Revenue point */}
+                  <circle cx={d.x} cy={100 - d.revY * 0.78} r="3.5" fill="#ffffff" stroke="#134e35" strokeWidth="2" />
+                  {/* Profit point */}
+                  <circle cx={d.x} cy={100 - d.profY * 0.78} r="3" fill="#ffffff" stroke="#22c55e" strokeWidth="2" />
+                </g>
+              ))}
+
+              {/* October Active Tooltip Pill */}
+              {hoveredMonth === 'Oct' && (
+                <g transform="translate(160, 2)">
+                  <rect x="0" y="0" width="76" height="20" rx="6" fill="#111827" />
+                  <text x="38" y="13.5" fill="#ffffff" fontSize="8" fontWeight="700" textAnchor="middle">
+                    ₹28.5L / ₹6.8L (24%)
+                  </text>
+                </g>
+              )}
+            </svg>
+
+            {/* Bottom X-Axis Labels */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 10px', marginTop: 2 }}>
+              {financialData.map((d) => (
+                <span
+                  key={d.period}
+                  onMouseEnter={() => setHoveredMonth(d.period)}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: hoveredMonth === d.period ? 800 : 500,
+                    color: hoveredMonth === d.period ? '#134e35' : '#94a3b8',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {d.period}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* CARD 2: REMINDERS (Donezo Meeting Card with Green Button) */}
+        {/* =================================================================
+            COLUMN B: ADMIN ACTION CENTRE
+            Pending Approvals: Quotations, POs, Discounts, Price Revisions
+            ================================================================= */}
         <div style={{
           background: '#ffffff',
           borderRadius: 20,
@@ -365,42 +464,185 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
           boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
           minHeight: 0
         }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-              Reminders
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
+                Admin Action Centre
+              </span>
+              <span style={{
+                fontSize: 9,
+                fontWeight: 800,
+                background: '#fee2e2',
+                color: '#dc2626',
+                padding: '1px 6px',
+                borderRadius: 9999
+              }}>
+                4 Pending
+              </span>
+            </div>
+            <button
+              onClick={() => onNavigateTab('quotations')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#164e32',
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2
+              }}
+            >
+              View all
+              <ChevronRight size={12} />
+            </button>
+          </div>
+
+          {/* Pending Decisions List (3-4 items) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minHeight: 0, justifyContent: 'center' }}>
+            {/* Action 1: Quotation Approval */}
+            <div
+              onClick={() => onNavigateTab('quotations')}
+              title="Click to review quotation"
+              style={{
+                background: '#f8faf9',
+                border: '1px solid #edf2ef',
+                borderRadius: 10,
+                padding: '5px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#111827' }}>
+                    Quote &bull; TX-1024
+                  </span>
+                  <span style={{ fontSize: 8, color: '#dc2626', background: '#fef2f2', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
+                    High
+                  </span>
+                </div>
+                <div style={{ fontSize: 8.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  ABC Garments &bull; ₹3.50L (18% margin)
+                </div>
+              </div>
+              <span style={{ fontSize: 8.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>2h wait</span>
             </div>
 
-            <div style={{
-              fontSize: 15,
-              fontWeight: 800,
-              color: '#111827',
-              marginTop: 14,
-              letterSpacing: '-0.3px',
-              lineHeight: 1.3
-            }}>
-              Meeting with Arc Company
+            {/* Action 2: Purchase Order Approval */}
+            <div
+              onClick={() => onNavigateTab('procurement')}
+              title="Click to review purchase order"
+              style={{
+                background: '#f8faf9',
+                border: '1px solid #edf2ef',
+                borderRadius: 10,
+                padding: '5px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#111827' }}>
+                    Purchase PO &bull; PO-1001
+                  </span>
+                  <span style={{ fontSize: 8, color: '#dc2626', background: '#fef2f2', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
+                    Urgent
+                  </span>
+                </div>
+                <div style={{ fontSize: 8.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  Sri Textiles &bull; 600m Cotton Fabric shortage
+                </div>
+              </div>
+              <span style={{ fontSize: 8.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>5h wait</span>
             </div>
 
-            <div style={{
-              fontSize: 11,
-              color: '#64748b',
-              marginTop: 6,
-              fontWeight: 500
-            }}>
-              Time : 02.00 pm - 04.00 pm
+            {/* Action 3: Client Discount Request */}
+            <div
+              onClick={() => onNavigateTab('chat')}
+              title="Click to resolve client discount request"
+              style={{
+                background: '#f8faf9',
+                border: '1px solid #edf2ef',
+                borderRadius: 10,
+                padding: '5px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#111827' }}>
+                    Discount &bull; TX-1025
+                  </span>
+                  <span style={{ fontSize: 8, color: '#b45309', background: '#fef3c7', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
+                    Med
+                  </span>
+                </div>
+                <div style={{ fontSize: 8.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  StyleMart &bull; -5% price cut to $3.80/m
+                </div>
+              </div>
+              <span style={{ fontSize: 8.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>4h wait</span>
+            </div>
+
+            {/* Action 4: Quotation Price Revision */}
+            <div
+              onClick={() => onNavigateTab('priceCentre')}
+              title="Click to inspect price revision"
+              style={{
+                background: '#f8faf9',
+                border: '1px solid #edf2ef',
+                borderRadius: 10,
+                padding: '5px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#111827' }}>
+                    Revision &bull; PR-108
+                  </span>
+                  <span style={{ fontSize: 8, color: '#475569', background: '#f1f5f9', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
+                    Normal
+                  </span>
+                </div>
+                <div style={{ fontSize: 8.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  FabIndia &bull; Yarn surge update +4.2%
+                </div>
+              </div>
+              <span style={{ fontSize: 8.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>1d wait</span>
             </div>
           </div>
 
-          {/* Solid Forest Green Start Meeting Button */}
+          {/* Prominent Action Button */}
           <button
-            onClick={() => setMeetingJoined(!meetingJoined)}
+            onClick={() => {
+              if (quickApprovedId) {
+                onNavigateTab('quotations');
+              } else {
+                handleQuickApprove('TX-1024');
+              }
+            }}
             style={{
-              background: meetingJoined ? '#059669' : 'linear-gradient(135deg, #134e35 0%, #1a5e41 100%)',
+              background: quickApprovedId ? '#059669' : 'linear-gradient(135deg, #134e35 0%, #1a5e41 100%)',
               color: '#ffffff',
               border: 'none',
               borderRadius: 9999,
-              padding: '10px 18px',
-              fontSize: 12.5,
+              padding: '9px 16px',
+              fontSize: 12,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
@@ -411,12 +653,15 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
               transition: 'all 0.15s ease'
             }}
           >
-            {meetingJoined ? <CheckCircle2 size={16} /> : <Video size={16} />}
-            <span>{meetingJoined ? 'Meeting Active' : 'Start Meeting'}</span>
+            {quickApprovedId ? <CheckCircle2 size={15} /> : <CheckCircle2 size={15} />}
+            <span>{quickApprovedId ? 'Quotation TX-1024 Approved' : 'Review Pending Approvals'}</span>
           </button>
         </div>
 
-        {/* CARD 3: PROJECT (5 Items with Geometric Icons + '+ New' Button) */}
+        {/* =================================================================
+            COLUMN C: DELIVERY & ORDER ALERTS
+            Top 3 Urgent Delivery Orders with Bottleneck Reasons
+            ================================================================= */}
         <div style={{
           background: '#ffffff',
           borderRadius: 20,
@@ -428,10 +673,10 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
           boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
           minHeight: 0
         }}>
-          {/* Header with '+ New' Pill */}
+          {/* Header with 'View All' Pill Button */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-              Project
+              Delivery &amp; Order Alerts
             </span>
             <button
               onClick={() => onNavigateTab('orders')}
@@ -449,105 +694,159 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
                 cursor: 'pointer'
               }}
             >
-              <Plus size={11} strokeWidth={2.5} />
-              New
+              View All
+              <ArrowRight size={11} strokeWidth={2.5} />
             </button>
           </div>
 
-          {/* 5 Project Items */}
+          {/* 3 Urgent Order Alerts */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1, justifyContent: 'center' }}>
-            {[
-              {
-                title: 'Develop API Endpoints',
-                date: 'Due date: Nov 26, 2024',
-                iconBg: '#3b82f6',
-                icon: (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3">
-                    <line x1="6" y1="18" x2="18" y2="6" />
-                    <line x1="12" y1="18" x2="20" y2="10" />
-                  </svg>
-                )
-              },
-              {
-                title: 'Onboarding Flow',
-                date: 'Due date: Nov 28, 2024',
-                iconBg: '#0d9488',
-                icon: (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="8" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )
-              },
-              {
-                title: 'Build Dashboard',
-                date: 'Due date: Nov 30, 2024',
-                iconBg: '#10b981',
-                icon: (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5">
-                    <rect x="4" y="4" width="7" height="7" rx="2" />
-                    <rect x="13" y="4" width="7" height="7" rx="2" />
-                    <rect x="4" y="13" width="7" height="7" rx="2" />
-                    <rect x="13" y="13" width="7" height="7" rx="2" />
-                  </svg>
-                )
-              },
-              {
-                title: 'Optimize Page Load',
-                date: 'Due date: Dec 5, 2024',
-                iconBg: '#f59e0b',
-                icon: (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="8" />
-                    <path d="M12 4v8l6 3" />
-                  </svg>
-                )
-              },
-              {
-                title: 'Cross-Browser Testing',
-                date: 'Due date: Dec 6, 2024',
-                iconBg: '#8b5cf6',
-                icon: (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5">
-                    <circle cx="7" cy="8" r="3" fill="#ffffff" />
-                    <circle cx="17" cy="8" r="3" fill="#ffffff" />
-                    <circle cx="12" cy="16" r="3" fill="#ffffff" />
-                  </svg>
-                )
-              }
-            ].map((proj, idx) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 6,
-                  background: proj.iconBg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  {proj.icon}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>
-                    {proj.title}
-                  </span>
-                  <span style={{ fontSize: 9, color: '#94a3b8' }}>
-                    {proj.date}
-                  </span>
-                </div>
+            {/* Alert 1: LP-902 */}
+            <div
+              onClick={() => handleDeliveryAlertClick('LP-902')}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 9,
+                padding: '5px 7px',
+                borderRadius: 8,
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                background: '#ef4444',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: 1
+              }}>
+                <AlertTriangle size={12} strokeWidth={2.5} />
               </div>
-            ))}
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#991b1b' }}>
+                    LP-902 &bull; ABC Garments
+                  </span>
+                  <span style={{ fontSize: 8, fontWeight: 800, color: '#dc2626' }}>
+                    +4d delay
+                  </span>
+                </div>
+                <span style={{ fontSize: 8.5, color: '#7f1d1d', marginTop: 1, lineHeight: 1.2 }}>
+                  Raw material shortage (600m Cotton Fabric awaiting PO-1001)
+                </span>
+                <span style={{ fontSize: 8, color: '#991b1b', marginTop: 1 }}>
+                  Deadline: 04 Nov 2026 &bull; <strong style={{ color: '#dc2626' }}>High Risk</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Alert 2: LP-904 */}
+            <div
+              onClick={() => handleDeliveryAlertClick('LP-904')}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 9,
+                padding: '5px 7px',
+                borderRadius: 8,
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                background: '#f59e0b',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: 1
+              }}>
+                <Clock size={12} strokeWidth={2.5} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#92400e' }}>
+                    LP-904 &bull; StyleMart
+                  </span>
+                  <span style={{ fontSize: 8, fontWeight: 800, color: '#d97706' }}>
+                    +2d delay
+                  </span>
+                </div>
+                <span style={{ fontSize: 8.5, color: '#78350f', marginTop: 1, lineHeight: 1.2 }}>
+                  Production below target (Airjet loom #7 recalibration)
+                </span>
+                <span style={{ fontSize: 8, color: '#92400e', marginTop: 1 }}>
+                  Deadline: 08 Nov 2026 &bull; <strong style={{ color: '#d97706' }}>Medium Risk</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Alert 3: LP-901 */}
+            <div
+              onClick={() => handleDeliveryAlertClick('LP-901')}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 9,
+                padding: '5px 7px',
+                borderRadius: 8,
+                background: '#f8faf9',
+                border: '1px solid #edf2ef',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                background: '#0d9488',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: 1
+              }}>
+                <Activity size={12} strokeWidth={2.5} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#111827' }}>
+                    LP-901 &bull; FabIndia
+                  </span>
+                  <span style={{ fontSize: 8, fontWeight: 800, color: '#0d9488' }}>
+                    +1d delay
+                  </span>
+                </div>
+                <span style={{ fontSize: 8.5, color: '#64748b', marginTop: 1, lineHeight: 1.2 }}>
+                  Continuous dyeing cycle bottleneck (Drying pace -15%)
+                </span>
+                <span style={{ fontSize: 8, color: '#64748b', marginTop: 1 }}>
+                  Deadline: 12 Nov 2026 &bull; <strong style={{ color: '#059669' }}>Low Risk</strong>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* ===================================================================
-          ROW 3: BOTTOM ROW (3 COLUMNS)
-          Col 1 (~44%): Team Collaboration (4 Members + Status Pills)
-          Col 2 (~28%): Project Progress (Semi-Circular Arc Meter 41%)
-          Col 3 (~28%): Time Tracker (Dark Green Card with Contour Lines & Timer 01:24:08)
+          ROW 3: BOTTOM ROW (3 PANELS)
+          Panel A (~44%): Factory Resource Utilization (Loom 82%, Workforce 88%, Output 76%)
+          Panel B (~28%): Order Status Distribution (124 Orders Donut Chart)
+          Panel C (~28%): Today's Factory Performance (Live Floor Monitor: 2,350m / 2,700m)
           =================================================================== */}
       <div style={{
         display: 'grid',
@@ -556,150 +855,115 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
         flex: 1.15,
         minHeight: 0
       }}>
-        {/* CARD 1: TEAM COLLABORATION */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #edf2ef',
-          padding: '14px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
-          minHeight: 0
-        }}>
-          {/* Header with '+ Add Member' Pill */}
+        {/* =================================================================
+            PANEL A: FACTORY RESOURCE UTILIZATION
+            Horizontal progress bars for Loom, Workforce & Output Capacity
+            ================================================================= */}
+        <div
+          onClick={() => onNavigateTab('supervisors')}
+          title="Click to view full Supervisor & Resource Allocation"
+          style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            border: '1px solid #edf2ef',
+            padding: '14px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
+            cursor: 'pointer',
+            minHeight: 0
+          }}
+        >
+          {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-              Team Collaboration
+              Factory Resource Utilization
             </span>
-            <button
-              onClick={() => onNavigateTab('users')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                border: '1.5px solid #111827',
-                borderRadius: 9999,
-                padding: '3px 12px',
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#111827',
-                background: '#ffffff',
-                cursor: 'pointer'
-              }}
-            >
-              <Plus size={11} strokeWidth={2.5} />
-              Add Member
-            </button>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              border: '1.5px solid #d1d5db',
+              borderRadius: 9999,
+              padding: '3px 10px',
+              fontSize: 10.5,
+              fontWeight: 600,
+              color: '#164e32',
+              background: '#eaf6ef'
+            }}>
+              Details
+              <ExternalLink size={10} />
+            </span>
           </div>
 
-          {/* 4 Member Rows */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, justifyContent: 'center' }}>
-            {[
-              {
-                name: 'Alexandra Deff',
-                task: 'Working on Github Project Repository',
-                status: 'Completed',
-                statusBg: '#eaf6ef',
-                statusColor: '#164e32',
-                avatarBg: '#fbcfe8',
-                emoji: '👩‍💻'
-              },
-              {
-                name: 'Edwin Adenike',
-                task: 'Working on Integrate User Authentication System',
-                status: 'In Progress',
-                statusBg: '#fef3c7',
-                statusColor: '#b45309',
-                avatarBg: '#fed7aa',
-                emoji: '👨‍💼'
-              },
-              {
-                name: 'Isaac Oluwatemilorun',
-                task: 'Working on Develop Search and Filter Functionality',
-                status: 'Pending',
-                statusBg: '#fee2e2',
-                statusColor: '#dc2626',
-                avatarBg: '#bae6fd',
-                emoji: '🧑‍💻'
-              },
-              {
-                name: 'David Oshodi',
-                task: 'Working on Responsive Layout for Homepage',
-                status: 'In Progress',
-                statusBg: '#fef3c7',
-                statusColor: '#b45309',
-                avatarBg: '#fef08a',
-                emoji: '👨‍🎨'
-              }
-            ].map((member, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '3px 0'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: member.avatarBg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 13,
-                    flexShrink: 0
-                  }}>
-                    {member.emoji}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>
-                      {member.name}
-                    </span>
-                    <span style={{ fontSize: 9.5, color: '#64748b' }}>
-                      {member.task}
-                    </span>
-                  </div>
-                </div>
-
-                <span style={{
-                  fontSize: 9.5,
-                  fontWeight: 700,
-                  background: member.statusBg,
-                  color: member.statusColor,
-                  padding: '2px 8px',
-                  borderRadius: 9999,
-                  whiteSpace: 'nowrap'
-                }}>
-                  {member.status}
-                </span>
+          {/* 3 Horizontal Progress Indicators */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1, justifyContent: 'center' }}>
+            {/* Loom Utilization: 82% */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#111827', marginBottom: 3 }}>
+                <span>Loom Utilization</span>
+                <span style={{ color: '#164e32' }}>82% <span style={{ fontSize: 9, fontWeight: 500, color: '#64748b' }}>(39/48 active)</span></span>
               </div>
-            ))}
+              <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
+                <div style={{ width: '82%', height: '100%', background: '#164e32', borderRadius: 9999 }} />
+              </div>
+            </div>
+
+            {/* Workforce Utilization: 88% */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#111827', marginBottom: 3 }}>
+                <span>Workforce Utilization</span>
+                <span style={{ color: '#059669' }}>88% <span style={{ fontSize: 9, fontWeight: 500, color: '#64748b' }}>(141/160 present)</span></span>
+              </div>
+              <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
+                <div style={{ width: '88%', height: '100%', background: '#22c55e', borderRadius: 9999 }} />
+              </div>
+            </div>
+
+            {/* Production Capacity Utilization: 76% */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#111827', marginBottom: 3 }}>
+                <span>Production Capacity Utilization</span>
+                <span style={{ color: '#0d9488' }}>76% <span style={{ fontSize: 9, fontWeight: 500, color: '#64748b' }}>(2,660m benchmark)</span></span>
+              </div>
+              <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
+                <div style={{ width: '76%', height: '100%', background: '#0d9488', borderRadius: 9999 }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Floor Alert */}
+          <div style={{ fontSize: 9, color: '#64748b', background: '#f8faf9', padding: '3px 8px', borderRadius: 6, border: '1px solid #edf2ef' }}>
+            Loom #7 recalibration scheduled at 14:00 (Shed A) &bull; Zero bottleneck on Shed B
           </div>
         </div>
 
-        {/* CARD 2: PROJECT PROGRESS (Semi-Circular Arc Meter 41%) */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #edf2ef',
-          padding: '14px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
-          minHeight: 0
-        }}>
+        {/* =================================================================
+            PANEL B: ORDER STATUS DISTRIBUTION
+            Order count distribution across mutually exclusive stages
+            ================================================================= */}
+        <div
+          onClick={() => onNavigateTab('orders')}
+          title="Click to explore Orders pipeline by status"
+          style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            border: '1px solid #edf2ef',
+            padding: '14px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
+            cursor: 'pointer',
+            minHeight: 0
+          }}
+        >
           <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-            Project Progress
+            Order Status Distribution
           </div>
 
-          {/* Donezo Semi-Circular Arc Meter */}
+          {/* Semi-Circular Arc / Donut Chart */}
           <div style={{
             display: 'flex',
             flexDirection: 'column',
@@ -709,45 +973,50 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
             marginTop: 2
           }}>
             <svg width="170" height="88" viewBox="0 0 170 88">
-              <defs>
-                <pattern id="donezoHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
-                  <line x1="0" y1="0" x2="0" y2="6" stroke="#cbd5e1" strokeWidth="2.2" />
-                </pattern>
-              </defs>
-
-              {/* Segment 3: Right Hatched Track (Pending) */}
+              {/* Completed: 30 orders (Forest Green) */}
               <path
                 d="M 15 80 A 70 70 0 0 1 155 80"
                 fill="none"
-                stroke="url(#donezoHatch)"
-                strokeWidth="16"
+                stroke="#d0ebd8"
+                strokeWidth="15"
                 strokeLinecap="round"
               />
 
-              {/* Segment 2: In Progress Dark Green */}
+              {/* In Production: 58 orders (Dark Green) */}
               <path
                 d="M 15 80 A 70 70 0 0 1 155 80"
                 fill="none"
                 stroke="#134e35"
-                strokeWidth="16"
+                strokeWidth="15"
                 strokeLinecap="round"
                 strokeDasharray="220"
-                strokeDashoffset="75"
+                strokeDashoffset="90"
               />
 
-              {/* Segment 1: Completed Forest Green */}
+              {/* Awaiting Approval + New: 30 orders */}
               <path
                 d="M 15 80 A 70 70 0 0 1 155 80"
                 fill="none"
-                stroke="#2d8659"
-                strokeWidth="16"
+                stroke="#52b788"
+                strokeWidth="15"
                 strokeLinecap="round"
                 strokeDasharray="220"
-                strokeDashoffset="135"
+                strokeDashoffset="140"
+              />
+
+              {/* At Risk: 6 orders (Subtle Red warning segment) */}
+              <path
+                d="M 15 80 A 70 70 0 0 1 155 80"
+                fill="none"
+                stroke="#ef4444"
+                strokeWidth="15"
+                strokeLinecap="round"
+                strokeDasharray="220"
+                strokeDashoffset="195"
               />
             </svg>
 
-            {/* Central 41% Metric */}
+            {/* Central 124 Orders Metric */}
             <div style={{
               position: 'absolute',
               bottom: 2,
@@ -755,47 +1024,59 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
               flexDirection: 'column',
               alignItems: 'center'
             }}>
-              <span style={{ fontSize: 28, fontWeight: 800, color: '#111827', lineHeight: 1, letterSpacing: '-0.5px' }}>
-                41%
+              <span style={{ fontSize: 26, fontWeight: 800, color: '#111827', lineHeight: 1, letterSpacing: '-0.5px' }}>
+                124
               </span>
               <span style={{ fontSize: 9.5, color: '#64748b', fontWeight: 600, marginTop: 2 }}>
-                Project Ended
+                Total Orders
               </span>
             </div>
           </div>
 
-          {/* Legend Row */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, fontSize: 9.5, fontWeight: 600, color: '#64748b' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2d8659' }} />
-              Completed
+          {/* Legend Row representing order counts */}
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '3px 10px', fontSize: 9, fontWeight: 600, color: '#475569' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#134e35' }} />
+              In Prod: <strong>58</strong>
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#134e35' }} />
-              In Progress
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#52b788' }} />
+              Approval: <strong>14</strong>
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: 'repeating-linear-gradient(45deg, #cbd5e1 0px, #cbd5e1 1.5px, #f1f5f9 1.5px, #f1f5f9 3px)' }} />
-              Pending
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#d0ebd8' }} />
+              Completed: <strong>30</strong>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444' }} />
+              <span style={{ color: '#dc2626' }}>At Risk: <strong>06</strong></span>
             </span>
           </div>
         </div>
 
-        {/* CARD 3: TIME TRACKER (Dark Forest Green Card with Wavy Topography Lines) */}
-        <div style={{
-          background: 'linear-gradient(135deg, #0e3d28 0%, #08291a 100%)',
-          borderRadius: 20,
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          padding: '14px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          color: '#ffffff',
-          position: 'relative',
-          overflow: 'hidden',
-          boxShadow: '0 4px 16px rgba(14, 61, 40, 0.3)',
-          minHeight: 0
-        }}>
+        {/* =================================================================
+            PANEL C: TODAY'S FACTORY PERFORMANCE
+            Live Floor Monitor replacing timer (2,350m of 2,700m target - 87%)
+            ================================================================= */}
+        <div
+          onClick={() => onNavigateTab('production')}
+          title="Click to open Live Floor Production Tracking"
+          style={{
+            background: 'linear-gradient(135deg, #0e3d28 0%, #08291a 100%)',
+            borderRadius: 20,
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '14px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            color: '#ffffff',
+            position: 'relative',
+            overflow: 'hidden',
+            boxShadow: '0 4px 16px rgba(14, 61, 40, 0.3)',
+            cursor: 'pointer',
+            minHeight: 0
+          }}
+        >
           {/* SVG Organic Wavy Topography Contour Background Pattern */}
           <svg
             style={{
@@ -819,82 +1100,67 @@ export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
           </svg>
 
           {/* Header */}
-          <div style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#e2f0e8' }}>
-              Time Tracker
+              Today's Factory Performance
+            </span>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 8.5,
+              fontWeight: 800,
+              color: '#86efac',
+              background: 'rgba(134, 239, 172, 0.15)',
+              padding: '2px 7px',
+              borderRadius: 9999
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#86efac' }} />
+              LIVE FLOOR
             </span>
           </div>
 
-          {/* Timer Readout: 01:24:08 */}
+          {/* Main Production Completed Readout */}
           <div style={{
             position: 'relative',
             zIndex: 2,
-            textAlign: 'center',
-            fontSize: 30,
-            fontWeight: 800,
-            color: '#ffffff',
-            letterSpacing: '1px',
-            fontVariantNumeric: 'tabular-nums',
-            margin: '4px 0'
+            margin: '2px 0'
           }}>
-            {formatTimer(seconds)}
+            <div style={{ fontSize: 28, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.5px', lineHeight: 1 }}>
+              2,350 <span style={{ fontSize: 16, fontWeight: 600, color: '#86efac' }}>metres</span>
+            </div>
+            <div style={{ fontSize: 10, color: '#cde7d8', marginTop: 3 }}>
+              Today's Target: <strong>2,700 m</strong> &bull; <span style={{ color: '#86efac', fontWeight: 700 }}>87% Completed</span>
+            </div>
           </div>
 
-          {/* Play/Pause & Stop Controls */}
+          {/* Production Progress Bar against Target */}
+          <div style={{ position: 'relative', zIndex: 2 }}>
+            <div style={{ width: '100%', height: 6, background: 'rgba(255, 255, 255, 0.18)', borderRadius: 9999, overflow: 'hidden' }}>
+              <div style={{ width: '87%', height: '100%', background: '#22c55e', borderRadius: 9999 }} />
+            </div>
+          </div>
+
+          {/* Remaining Production & Pace Metrics */}
           <div style={{
             position: 'relative',
             zIndex: 2,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12
+            justifyContent: 'space-between',
+            fontSize: 9.5,
+            color: '#cde7d8'
           }}>
-            {/* Pause / Play Button (White Circle) */}
-            <button
-              onClick={() => setTimerRunning(!timerRunning)}
-              title={timerRunning ? 'Pause' : 'Play'}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                background: '#ffffff',
-                border: 'none',
-                color: '#111827',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                transition: 'transform 0.1s ease'
-              }}
-            >
-              {timerRunning ? <Pause size={15} fill="#111827" /> : <Play size={15} fill="#111827" style={{ marginLeft: 2 }} />}
-            </button>
-
-            {/* Stop Button (Red Circle) */}
-            <button
-              onClick={() => {
-                setTimerRunning(false);
-                setSeconds(5048);
-              }}
-              title="Reset"
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                background: '#ef4444',
-                border: 'none',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
-                transition: 'transform 0.1s ease'
-              }}
-            >
-              <Square size={14} fill="#ffffff" />
-            </button>
+            <span>Remaining: <strong style={{ color: '#ffffff' }}>350 metres</strong></span>
+            <span style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              padding: '2px 8px',
+              borderRadius: 6,
+              color: '#86efac',
+              fontWeight: 700
+            }}>
+              142 m/hr pace
+            </span>
           </div>
         </div>
       </div>

@@ -62,6 +62,302 @@ export const INITIAL_COMMODITIES: MarketCommodity[] = [
 ];
 
 export const INITIAL_ORDERS: Order[] = [
+  // LP-901 · Fashion House · Cotton Shirts & Pants (On track - 85% weighted progress, Almost completed)
+  {
+    id: 'LP-901',
+    clientName: 'Fashion House',
+    clientEmail: 'procurement@fashionhouse.com',
+    productName: 'Cotton Shirts',
+    category: 'Apparel',
+    specs: {
+      yarnCount: '40s Combed',
+      gsm: 185,
+      width: '58 inches',
+      weave: 'Oxford & Twill',
+      finishing: 'Bio-Washed Silk Finish'
+    },
+    quantityMeters: 5000,
+    producedMeters: 4250,
+    submittedDate: '2026-10-20',
+    deadlineDate: '05 Nov 2026',
+    currentPhase: 'Quality Inspection',
+    status: 'in_production',
+    riskStatus: 'on_track',
+    riskReason: 'Almost completed · Due 05 Nov',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar',
+    handoverDate: '2026-10-22',
+    productionPlanConfirmed: true,
+    items: [
+      {
+        id: 'LP-901-A',
+        name: 'Formal Shirt — Design A',
+        designCode: 'FS-A-01',
+        category: 'Formalwear',
+        quantityPieces: 2000,
+        progressPercent: 90,
+        imageUrl: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'on_track',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Material received · 24 Oct', notes: '40s combed cotton yarn approved' },
+          { id: 't2', name: 'Warping & Sizing', status: 'completed', dateOrDetails: 'Completed · 25 Oct', notes: 'Beam sizing verified' },
+          { id: 't3', name: 'Loom Weaving', status: 'completed', dateOrDetails: '2,000 metres produced · 27 Oct', notes: 'Airjet Loom #12 run completed' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'completed', dateOrDetails: 'Completed · 29 Oct', notes: 'Shade matching batch verified' },
+          { id: 't5', name: 'Quality Inspection', status: 'in_progress', dateOrDetails: 'Current stage · 4-point inspection', notes: '98.5% first pass yield' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 04 Nov', notes: 'Cartoning queued' }
+        ]
+      },
+      {
+        id: 'LP-901-B',
+        name: 'Formal Pants — Design B',
+        designCode: 'FP-B-02',
+        category: 'Trousers',
+        quantityPieces: 1500,
+        progressPercent: 85,
+        imageUrl: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'on_track',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Material received · 25 Oct' },
+          { id: 't2', name: 'Warping & Sizing', status: 'completed', dateOrDetails: 'Completed · 26 Oct' },
+          { id: 't3', name: 'Loom Weaving', status: 'completed', dateOrDetails: 'Completed · 28 Oct' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'completed', dateOrDetails: 'Completed · 30 Oct' },
+          { id: 't5', name: 'Quality Inspection', status: 'in_progress', dateOrDetails: 'Current stage · Batch inspection' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 04 Nov' }
+        ]
+      },
+      {
+        id: 'LP-901-C',
+        name: 'Casual Shirt — Design C',
+        designCode: 'CS-C-03',
+        category: 'Casualwear',
+        quantityPieces: 1500,
+        progressPercent: 80,
+        imageUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'on_track',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Material received · 25 Oct' },
+          { id: 't2', name: 'Warping & Sizing', status: 'completed', dateOrDetails: 'Completed · 26 Oct' },
+          { id: 't3', name: 'Loom Weaving', status: 'completed', dateOrDetails: 'Completed · 28 Oct' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'in_progress', dateOrDetails: 'Current stage · Final finishing stenter' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Scheduled 02 Nov' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 05 Nov' }
+        ]
+      }
+    ],
+    deliveries: [],
+    payments: [],
+    dailyReports: []
+  },
+
+  // LP-902 · Urban Textiles · Cotton Shirts (At risk - 42% progress, Material Shortage)
+  {
+    id: 'LP-902',
+    clientName: 'Urban Textiles',
+    clientEmail: 'orders@urbantextiles.com',
+    productName: 'Cotton Shirts',
+    category: 'Apparel',
+    specs: {
+      yarnCount: '30s Ring Spun',
+      gsm: 190,
+      width: '60 inches',
+      weave: 'Poplin',
+      finishing: 'Mercerized'
+    },
+    quantityMeters: 8000,
+    producedMeters: 3360,
+    submittedDate: '2026-10-22',
+    deadlineDate: '06 Nov 2026',
+    currentPhase: 'Loom Weaving',
+    status: 'awaiting_admin_decision',
+    riskStatus: 'at_risk',
+    riskReason: 'Material shortage · Due 06 Nov',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar',
+    handoverDate: '2026-10-23',
+    productionPlanConfirmed: true,
+    items: [
+      {
+        id: 'LP-902-A',
+        name: 'Urban Cotton Oxford Shirt',
+        designCode: 'UCO-01',
+        category: 'Shirts',
+        quantityPieces: 5000,
+        progressPercent: 42,
+        imageUrl: 'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'at_risk',
+        riskReason: '600m raw cotton fabric shortfall awaiting supplier PO-1001',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Completed · 23 Oct', notes: 'Shortage flagged on yarn lot #2' },
+          { id: 't2', name: 'Warping & Sizing', status: 'completed', dateOrDetails: 'Completed · 25 Oct', notes: 'Processed available 1,400m warp' },
+          { id: 't3', name: 'Loom Weaving', status: 'in_progress', dateOrDetails: 'Current stage · Held for yarn', notes: 'Loom #7 awaiting expedited yarn delivery' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'pending', dateOrDetails: 'Awaiting weaving completion', notes: 'Vat dyeing recipe prepared' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Pending', notes: 'Inspection team notified of expedite' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Pending', notes: 'Air express shipping pending' }
+        ]
+      },
+      {
+        id: 'LP-902-B',
+        name: 'Urban Poplin Shirt',
+        designCode: 'UPS-02',
+        category: 'Shirts',
+        quantityPieces: 3000,
+        progressPercent: 42,
+        imageUrl: 'https://images.unsplash.com/photo-1589310243389-96a5483213a8?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'at_risk',
+        riskReason: 'Weaving paced below planned run speed',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Completed · 24 Oct', notes: 'Greige yarn received' },
+          { id: 't2', name: 'Warping & Sizing', status: 'completed', dateOrDetails: 'Completed · 26 Oct', notes: 'Warp beam ready' },
+          { id: 't3', name: 'Loom Weaving', status: 'in_progress', dateOrDetails: 'Current stage · Weaving at 380 ppm', notes: 'Loom speed recalibration required' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'pending', dateOrDetails: 'Pending', notes: 'Scheduled post-weaving' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Pending', notes: 'Pending' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Pending', notes: 'Pending' }
+        ]
+      }
+    ],
+    deliveries: [],
+    payments: [],
+    dailyReports: []
+  },
+
+  // LP-903 · Style World · Bedsheets (Early production - 25% progress)
+  {
+    id: 'LP-903',
+    clientName: 'Style World',
+    clientEmail: 'style@styleworld.com',
+    productName: 'Bedsheets',
+    category: 'Home Textiles',
+    specs: {
+      yarnCount: '60s Combed',
+      gsm: 210,
+      width: '108 inches',
+      weave: 'Satin Weave',
+      finishing: 'Peach Soft'
+    },
+    quantityMeters: 3500,
+    producedMeters: 875,
+    submittedDate: '2026-10-24',
+    deadlineDate: '12 Nov 2026',
+    currentPhase: 'Warping & Sizing',
+    status: 'in_production',
+    riskStatus: 'early_production',
+    riskReason: 'Early production · Due 12 Nov',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar',
+    handoverDate: '2026-10-25',
+    productionPlanConfirmed: true,
+    items: [
+      {
+        id: 'LP-903-A',
+        name: 'King Size Bedsheet Set',
+        designCode: 'BS-K-01',
+        category: 'Bedding',
+        quantityPieces: 2000,
+        progressPercent: 25,
+        imageUrl: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'on_track',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Completed · 25 Oct', notes: '60s combed compact yarn approved' },
+          { id: 't2', name: 'Warping & Sizing', status: 'in_progress', dateOrDetails: 'Current stage · High density beam', notes: '108 inch wide warping underway' },
+          { id: 't3', name: 'Loom Weaving', status: 'pending', dateOrDetails: 'Scheduled 31 Oct', notes: 'Wide width airjet loom #1' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'pending', dateOrDetails: 'Scheduled 04 Nov', notes: 'Rotary printing planned' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Scheduled 08 Nov', notes: 'Shrinkage & pilling test' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 11 Nov', notes: 'Retail box packing' }
+        ]
+      },
+      {
+        id: 'LP-903-B',
+        name: 'Queen Size Bedsheet Set',
+        designCode: 'BS-Q-02',
+        category: 'Bedding',
+        quantityPieces: 1500,
+        progressPercent: 25,
+        imageUrl: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'on_track',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Completed · 25 Oct', notes: 'Verified yarn test report' },
+          { id: 't2', name: 'Warping & Sizing', status: 'in_progress', dateOrDetails: 'Current stage · Beam 2', notes: 'Beam loading' },
+          { id: 't3', name: 'Loom Weaving', status: 'pending', dateOrDetails: 'Scheduled 01 Nov', notes: 'Wide width loom #2' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'pending', dateOrDetails: 'Scheduled 05 Nov', notes: 'Continuous dyeing range' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Scheduled 09 Nov', notes: 'Standard inspection' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 12 Nov', notes: 'Export packing' }
+        ]
+      }
+    ],
+    deliveries: [],
+    payments: [],
+    dailyReports: []
+  },
+
+  // LP-904 · Home Living · Curtains (Just started - 10% progress)
+  {
+    id: 'LP-904',
+    clientName: 'Home Living',
+    clientEmail: 'procure@homeliving.com',
+    productName: 'Curtains',
+    category: 'Home Textiles',
+    specs: {
+      yarnCount: '20s Poly-Cotton',
+      gsm: 260,
+      width: '54 inches',
+      weave: 'Jacquard Weave',
+      finishing: 'Flame Retardant'
+    },
+    quantityMeters: 1200,
+    producedMeters: 120,
+    submittedDate: '2026-10-26',
+    deadlineDate: '20 Nov 2026',
+    currentPhase: 'Yarn Inward',
+    status: 'submitted',
+    riskStatus: 'just_started',
+    riskReason: 'Just started · Due 20 Nov',
+    assignedSupervisorId: 'usr_sup_1',
+    assignedSupervisorName: 'Ramesh Kumar',
+    handoverDate: '2026-10-27',
+    productionPlanConfirmed: false,
+    items: [
+      {
+        id: 'LP-904-A',
+        name: 'Blackout Curtains - Gold Jacquard',
+        designCode: 'CUR-BJ-01',
+        category: 'Drapes',
+        quantityPieces: 800,
+        progressPercent: 10,
+        imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'on_track',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'in_progress', dateOrDetails: 'Current stage · Yarn delivery inward', notes: 'Jacquard filament yarn arrival' },
+          { id: 't2', name: 'Warping & Sizing', status: 'pending', dateOrDetails: 'Scheduled 02 Nov', notes: 'Card punch setup' },
+          { id: 't3', name: 'Loom Weaving', status: 'pending', dateOrDetails: 'Scheduled 06 Nov', notes: 'Jacquard loom #3' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'pending', dateOrDetails: 'Scheduled 11 Nov', notes: 'FR coating application' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Scheduled 15 Nov', notes: 'Light transmission test' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 19 Nov', notes: 'Grommet eyelet packing' }
+        ]
+      },
+      {
+        id: 'LP-904-B',
+        name: 'Sheer Curtains - Linen White',
+        designCode: 'CUR-SL-02',
+        category: 'Drapes',
+        quantityPieces: 400,
+        progressPercent: 10,
+        imageUrl: 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?auto=format&fit=crop&w=400&q=80',
+        riskStatus: 'on_track',
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'in_progress', dateOrDetails: 'Current stage · Quality check', notes: 'Fine linen yarn inspection' },
+          { id: 't2', name: 'Warping & Sizing', status: 'pending', dateOrDetails: 'Scheduled 03 Nov', notes: 'Delicate sizing' },
+          { id: 't3', name: 'Loom Weaving', status: 'pending', dateOrDetails: 'Scheduled 07 Nov', notes: 'Airjet loom #6' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'pending', dateOrDetails: 'Scheduled 12 Nov', notes: 'Optical whitening finish' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Scheduled 16 Nov', notes: 'Weight & drape test' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 19 Nov', notes: 'Fold & label' }
+        ]
+      }
+    ],
+    deliveries: [],
+    payments: [],
+    dailyReports: []
+  },
+
   // 1. Order TX-1024 · Cotton Shirts · ABC Garments (In Production - 65%)
   {
     id: 'TX-1024',
@@ -82,10 +378,46 @@ export const INITIAL_ORDERS: Order[] = [
     deadlineDate: '15 Nov 2026',
     currentPhase: 'Stitching',
     status: 'in_production',
+    riskStatus: 'on_track',
+    riskReason: 'In production · Due 15 Nov',
     assignedSupervisorId: 'usr_sup_1',
     assignedSupervisorName: 'Ramesh Kumar',
     handoverDate: '2026-10-29',
     productionPlanConfirmed: true,
+    items: [
+      {
+        id: 'TX-1024-A',
+        name: 'Cotton Oxford Shirt',
+        designCode: 'COS-01',
+        category: 'Shirts',
+        quantityPieces: 3000,
+        progressPercent: 70,
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Completed · 26 Oct' },
+          { id: 't2', name: 'Warping & Sizing', status: 'completed', dateOrDetails: 'Completed · 27 Oct' },
+          { id: 't3', name: 'Loom Weaving', status: 'completed', dateOrDetails: 'Completed · 29 Oct' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'in_progress', dateOrDetails: 'Current stage · 1,800m done' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Scheduled 05 Nov' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 12 Nov' }
+        ]
+      },
+      {
+        id: 'TX-1024-B',
+        name: 'Cotton Twill Shirt',
+        designCode: 'CTS-02',
+        category: 'Shirts',
+        quantityPieces: 2000,
+        progressPercent: 55,
+        timeline: [
+          { id: 't1', name: 'Yarn Inward', status: 'completed', dateOrDetails: 'Completed · 26 Oct' },
+          { id: 't2', name: 'Warping & Sizing', status: 'completed', dateOrDetails: 'Completed · 27 Oct' },
+          { id: 't3', name: 'Loom Weaving', status: 'in_progress', dateOrDetails: 'Current stage · 1,100m done' },
+          { id: 't4', name: 'Dyeing & Finishing', status: 'pending', dateOrDetails: 'Scheduled 04 Nov' },
+          { id: 't5', name: 'Quality Inspection', status: 'pending', dateOrDetails: 'Scheduled 08 Nov' },
+          { id: 't6', name: 'Dispatch', status: 'pending', dateOrDetails: 'Scheduled 14 Nov' }
+        ]
+      }
+    ],
     feasibility: {
       id: 'feas_1024',
       orderId: 'TX-1024',
