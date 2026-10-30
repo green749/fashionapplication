@@ -1,0 +1,657 @@
+/* ==========================================================================
+   LOOMPILOT ADMIN PORTAL - Donezo Forest Green & Crisp White Design System
+   - Inspired by the Donezo Executive Workspace UI
+   - Palette: Crisp Canvas (#f6f8f7), Pure White (#ffffff),
+              Deep Forest Green (#164e32), Forest Hover (#103d27),
+              Soft Mint Pill (#eaf6ef), Mint Border (#cde7d8),
+              Muted Slate (#64748b), Dark Charcoal (#111827)
+   - Typography: Plus Jakarta Sans / Inter geometric grotesque
+   - Form factors: Rounded capsule pills (border-radius: 9999px),
+                   Generous rounded cards (border-radius: 20px),
+                   Micro borders (1px solid #edf2ef)
+   ========================================================================== */
+
+:root {
+  /* Donezo Forest Green Palette */
+  --c-primary: #164e32;
+  --c-primary-hover: #103d27;
+  --c-primary-dark: #0d3020;
+  --c-accent-mint: #eaf6ef;
+  --c-accent-mint-strong: #d2ebe2;
+  --c-accent-mint-text: #164e32;
+  --c-accent-mint-border: #cde7d8;
+
+  --c-canvas-bg: #f6f8f7;
+  --c-card-white: #ffffff;
+  --c-card-subtle: #f9fbf9;
+  --c-border-subtle: #edf2ef;
+  --c-border-card: #e5ece7;
+
+  /* Multi-color Capsule Tubes */
+  --c-tube-mint: #eaf6ef;
+  --c-tube-lavender: #f3f0ff;
+  --c-tube-black: #164e32;
+  --c-tube-blue: #e0f2fe;
+  --c-tube-pink: #fdf2f8;
+
+  /* Status Tokens */
+  --c-status-inprod: #164e32;
+  --c-status-feasible: #10b981;
+  --c-status-atrisk: #f59e0b;
+  --c-status-infeasible: #ef4444;
+  --c-status-quote: #6366f1;
+  --c-status-ready: #0d9488;
+
+  /* Typography Colors */
+  --c-text-primary: #111827;
+  --c-text-secondary: #4b5563;
+  --c-text-muted: #8c9ba8;
+  --c-text-table-head: #6b7280;
+
+  --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --radius-app: 28px;
+  --radius-card: 20px;
+  --radius-pill: 9999px;
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.025);
+  --shadow-hover: 0 6px 20px rgba(0, 0, 0, 0.04);
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font-family);
+  background: var(--c-canvas-bg);
+  color: var(--c-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* App Viewport Container: Studio Window Shell */
+.app-viewport {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  background: var(--c-canvas-bg);
+  padding: 10px 12px;
+}
+
+.dashboard-container {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 204px minmax(0, 1fr);
+  gap: 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   1. LEFT WHITE DONEZO SIDEBAR
+   ========================================================================== */
+.sidebar-column {
+  width: 204px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-pillar {
+  width: 204px;
+  height: 100%;
+  background-color: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #edf2ef;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.03);
+  user-select: none;
+  position: relative;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.sidebar-top {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar-top::-webkit-scrollbar {
+  width: 3px;
+}
+.sidebar-top::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+/* Brand Logo Header at Top of Sidebar */
+.brand-header-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 6px 6px;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+
+.brand-header-wrap:hover {
+  transform: translateX(2px);
+}
+
+.brand-emblem-wrap {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(22, 78, 50, 0.25);
+}
+
+.brand-name-text {
+  font-size: 16px;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.4px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+}
+
+.nav-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  color: #52606d;
+  text-decoration: none;
+  position: relative;
+  transition: all 0.16s ease;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nav-btn:hover {
+  color: var(--c-primary);
+  background: #f4f8f5;
+}
+
+/* Donezo Soft Mint active pill */
+.nav-btn.active {
+  color: #164e32;
+  background: #eaf6ef;
+  font-weight: 700;
+}
+
+.nav-icon-box {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.nav-label-text {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-badge-count {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-btn.active .nav-badge-count {
+  background: #164e32;
+  color: #ffffff;
+}
+
+/* Sidebar Bottom: Application-Matched Card & User Row */
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 1px solid #edf2ef;
+}
+
+.sidebar-promo-card {
+  background: #164e32;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.sidebar-promo-card:hover {
+  transform: translateY(-2px);
+  background: #103d27;
+}
+
+.promo-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.promo-card-tag {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #a7f3d0;
+}
+
+.promo-arrow-circle {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.promo-card-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-top: 2px;
+}
+
+.promo-card-sub {
+  font-size: 9.5px;
+  color: #cde7d8;
+  font-weight: 500;
+}
+
+.sidebar-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sidebar-user-row:hover {
+  background: #f4f8f5;
+}
+
+.sidebar-user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #164e32;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar-user-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-role {
+  font-size: 9px;
+  color: #64748b;
+}
+
+.sidebar-logout-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.sidebar-logout-btn:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+/* ==========================================================================
+   2. MAIN CONTENT VIEWPORT (Crisp White Canvas Card)
+   ========================================================================== */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--c-card-white);
+  border-radius: 20px;
+  border: 1px solid var(--c-border-subtle);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.025);
+  padding: 10px 14px;
+}
+
+.main-view-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  gap: 10px;
+}
+
+.main-view-container::-webkit-scrollbar {
+  width: 4px;
+}
+.main-view-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* Module Header (Flat & Minimal) */
+.module-header-flat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.module-header-flat h1,
+.module-header-flat h2 {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--c-text-primary);
+  letter-spacing: -0.4px;
+  margin: 0;
+}
+
+/* Capsule Buttons & Actions */
+.admin-btn-primary {
+  background: var(--c-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 7px 16px;
+  font-size: 11.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(22, 78, 50, 0.2);
+}
+
+.admin-btn-primary:hover {
+  background: var(--c-primary-hover);
+  transform: translateY(-1px);
+}
+
+.admin-btn-mint {
+  background: var(--c-accent-mint);
+  color: var(--c-accent-mint-text);
+  border: 1px solid var(--c-accent-mint-border);
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-btn-mint:hover {
+  background: var(--c-accent-mint-strong);
+}
+
+/* Filter Pills Group */
+.filter-pill {
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid var(--c-border-subtle);
+  background: #ffffff;
+  color: var(--c-text-secondary);
+}
+
+.filter-pill:hover {
+  background: #f8fafc;
+  color: var(--c-text-primary);
+}
+
+.filter-pill.active {
+  background: var(--c-accent-mint);
+  color: var(--c-accent-mint-text);
+  border-color: var(--c-accent-mint-border);
+  font-weight: 700;
+}
+
+/* KPI Flat Strip */
+.kpi-strip-flat {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.kpi-cell-flat {
+  background: #ffffff;
+  border: 1px solid var(--c-border-subtle);
+  border-radius: 20px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.015);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kpi-cell-flat:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+/* Status Pill Tokens */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.status-inprod {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.status-feasible {
+  background: var(--c-accent-mint);
+  color: var(--c-accent-mint-text);
+}
+
+.status-atrisk {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-infeasible {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-quote {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+/* Form inputs & Selects */
+.admin-form-input {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 8px 14px;
+  font-size: 11px;
+  color: var(--c-text-primary);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.admin-form-input:focus {
+  border-color: var(--c-primary);
+}
+
+.admin-form-select {
+  background: #ffffff;
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--c-text-primary);
+  outline: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.admin-form-select:focus {
+  border-color: var(--c-primary);
+}
+
+/* Modal Overlay & Card */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 19, 21, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.modal-card {
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 24px;
+  max-width: 540px;
+  width: 100%;
+  border: 1px solid var(--c-border-subtle);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--c-text-primary);
+  margin: 0;
+}
+
+.modal-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--c-text-muted);
+}
+
+.modal-close-btn:hover {
+  background: #e2e8f0;
+  color: var(--c-text-primary);
+}
