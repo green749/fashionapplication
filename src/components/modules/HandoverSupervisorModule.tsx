@@ -57,7 +57,7 @@ export const HandoverSupervisorModule: React.FC<HandoverSupervisorModuleProps> =
                 borderRadius: 16,
                 padding: '16px',
                 boxShadow: 'var(--shadow-card)',
-                border: isAssigned ? '1px solid #bbf7d0' : '1px solid #fed7aa',
+                border: isAssigned ? '1px solid #edf2ee' : '1px solid #fed7aa',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',

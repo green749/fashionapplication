@@ -96,7 +96,7 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
   const pendingInvites = invites.filter((inv) => inv.status === 'pending');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4, background: '#ffffff' }}>
       {/* 1. Header Bar */}
       <div className="module-header-flat">
         <div>
@@ -137,8 +137,8 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
                   padding: '6px 14px',
                   borderRadius: 9999,
                   border: isActive ? '1px solid #c6e5db' : '1px solid #e2e8f0',
-                  background: isActive ? '#dff1ea' : '#ffffff',
-                  color: isActive ? '#1e473d' : '#64748b',
+                  background: isActive ? '#F8F0DF' : '#ffffff',
+                  color: isActive ? '#18191B' : '#64748b',
                   fontSize: 11,
                   fontWeight: isActive ? 700 : 500,
                   cursor: 'pointer',
@@ -209,8 +209,8 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
                       width: 32,
                       height: 32,
                       borderRadius: '50%',
-                      background: u.role === 'admin' ? '#dff1ea' : (u.role === 'supervisor' ? '#e0f2fe' : '#ede9fe'),
-                      color: u.role === 'admin' ? '#1e473d' : (u.role === 'supervisor' ? '#0369a1' : '#5b21b6'),
+                      background: u.role === 'admin' ? '#F8F0DF' : (u.role === 'supervisor' ? '#e0f2fe' : '#ede9fe'),
+                      color: u.role === 'admin' ? '#18191B' : (u.role === 'supervisor' ? '#0369a1' : '#5b21b6'),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -232,8 +232,8 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
 
                   <div>
                     <span style={{
-                      background: u.role === 'admin' ? '#dff1ea' : (u.role === 'supervisor' ? '#e0f2fe' : '#ede9fe'),
-                      color: u.role === 'admin' ? '#1e473d' : (u.role === 'supervisor' ? '#0369a1' : '#5b21b6'),
+                      background: u.role === 'admin' ? '#F8F0DF' : (u.role === 'supervisor' ? '#e0f2fe' : '#ede9fe'),
+                      color: u.role === 'admin' ? '#18191B' : (u.role === 'supervisor' ? '#0369a1' : '#5b21b6'),
                       fontSize: 9,
                       padding: '3px 8px',
                       borderRadius: 9999,
@@ -302,8 +302,8 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <strong style={{ color: '#0a0d10', fontSize: 12.5 }}>{inv.name}</strong>
                         <span style={{
-                          background: inv.role === 'supervisor' ? '#e0f2fe' : (inv.role === 'client' ? '#ede9fe' : '#dff1ea'),
-                          color: inv.role === 'supervisor' ? '#0369a1' : (inv.role === 'client' ? '#5b21b6' : '#1e473d'),
+                          background: inv.role === 'supervisor' ? '#e0f2fe' : (inv.role === 'client' ? '#ede9fe' : '#F8F0DF'),
+                          color: inv.role === 'supervisor' ? '#0369a1' : (inv.role === 'client' ? '#5b21b6' : '#18191B'),
                           fontSize: 9,
                           padding: '2px 8px',
                           borderRadius: 9999,
@@ -443,17 +443,17 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{
-                  background: '#dff1ea',
+                  background: '#F8F0DF',
                   border: '1px solid #c6e5db',
                   borderRadius: 18,
                   padding: '14px 16px',
                   fontSize: 11.5
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1e473d', fontWeight: 800 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#18191B', fontWeight: 800 }}>
                     <Check size={15} />
                     <span>Invite Link Generated Successfully!</span>
                   </div>
-                  <p style={{ color: '#1e473d', marginTop: 4, margin: '4px 0 0' }}>
+                  <p style={{ color: '#18191B', marginTop: 4, margin: '4px 0 0' }}>
                     Invite for <strong>{generatedInvite.name}</strong> ({generatedInvite.role.toUpperCase()}) is ready. Send this link to complete onboarding.
                   </p>
                 </div>
@@ -543,8 +543,8 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 800 }}>LOOMPILOT</span>
                 <span style={{
-                  background: '#dff1ea',
-                  color: '#1e473d',
+                  background: '#F8F0DF',
+                  color: '#18191B',
                   fontSize: 9,
                   fontWeight: 700,
                   padding: '2px 8px',
@@ -558,12 +558,12 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
 
             {regSuccessMsg ? (
               <div style={{
-                background: '#dff1ea',
+                background: '#F8F0DF',
                 border: '1px solid #c6e5db',
                 borderRadius: 18,
                 padding: '20px',
                 textAlign: 'center',
-                color: '#1e473d',
+                color: '#18191B',
                 fontSize: 12,
                 fontWeight: 700
               }}>

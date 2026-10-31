@@ -41,8 +41,8 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
       name: 'Quotation Agent' as const,
       role: 'Itemized BOM, wastage buffer (4.5%) & suggested margin',
       status: 'Review Required',
-      color: '#1e473d',
-      bg: '#dff1ea'
+      color: '#18191B',
+      bg: '#F8F0DF'
     },
     {
       name: 'Market Price Agent' as const,
@@ -82,7 +82,7 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4, background: '#ffffff' }}>
       {/* 1. PAGE HEADER */}
       <div className="module-header-flat">
         <div>
@@ -93,8 +93,8 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
-            background: alertRunsCount > 0 ? '#fef3c7' : '#dff1ea',
-            color: alertRunsCount > 0 ? '#b45309' : '#1e473d',
+            background: alertRunsCount > 0 ? '#fef3c7' : '#F8F0DF',
+            color: alertRunsCount > 0 ? '#b45309' : '#18191B',
             border: alertRunsCount > 0 ? '1px solid #fde68a' : '1px solid #c6e5db',
             padding: '5px 14px',
             borderRadius: 9999,
@@ -111,7 +111,7 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
               </>
             ) : (
               <>
-                <CheckCircle2 size={14} color="#1e473d" />
+                <CheckCircle2 size={14} color="#18191B" />
                 <span>All Agent Sweeps Normal</span>
               </>
             )}
@@ -129,7 +129,7 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
               key={ag.name}
               onClick={() => setSelectedAgentFilter(selectedAgentFilter === ag.name ? 'all' : ag.name)}
               style={{
-                background: isSelected ? '#dff1ea' : '#ffffff',
+                background: isSelected ? '#F8F0DF' : '#ffffff',
                 borderRadius: 20,
                 border: isSelected ? '1px solid #c6e5db' : '1px solid #e5e9ee',
                 padding: '14px 16px',
@@ -141,7 +141,7 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, fontWeight: 800, color: isSelected ? '#1e473d' : '#0a0d10' }}>{ag.name}</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: isSelected ? '#18191B' : '#0a0d10' }}>{ag.name}</span>
                 <span style={{
                   width: 8,
                   height: 8,
@@ -177,8 +177,8 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
               padding: '6px 14px',
               borderRadius: 9999,
               border: selectedAgentFilter === 'all' ? '1px solid #c6e5db' : '1px solid #e2e8f0',
-              background: selectedAgentFilter === 'all' ? '#dff1ea' : '#ffffff',
-              color: selectedAgentFilter === 'all' ? '#1e473d' : '#64748b',
+              background: selectedAgentFilter === 'all' ? '#F8F0DF' : '#ffffff',
+              color: selectedAgentFilter === 'all' ? '#18191B' : '#64748b',
               fontSize: 11,
               fontWeight: selectedAgentFilter === 'all' ? 700 : 500,
               cursor: 'pointer'
@@ -211,8 +211,8 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
               padding: '6px 14px',
               borderRadius: 9999,
               border: statusFilter === 'SUCCESS' ? '1px solid #c6e5db' : '1px solid #e2e8f0',
-              background: statusFilter === 'SUCCESS' ? '#dff1ea' : '#ffffff',
-              color: statusFilter === 'SUCCESS' ? '#1e473d' : '#64748b',
+              background: statusFilter === 'SUCCESS' ? '#F8F0DF' : '#ffffff',
+              color: statusFilter === 'SUCCESS' ? '#18191B' : '#64748b',
               fontSize: 11,
               fontWeight: statusFilter === 'SUCCESS' ? 700 : 500,
               cursor: 'pointer',
@@ -221,7 +221,7 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
               gap: 4
             }}
           >
-            <CheckCircle2 size={13} color="#1e473d" />
+            <CheckCircle2 size={13} color="#18191B" />
             <span>Completed Sweeps</span>
           </button>
         </div>
@@ -290,8 +290,8 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
                     width: 34,
                     height: 34,
                     borderRadius: '50%',
-                    background: isAlert ? '#fef3c7' : '#dff1ea',
-                    color: isAlert ? '#b45309' : '#1e473d',
+                    background: isAlert ? '#fef3c7' : '#F8F0DF',
+                    color: isAlert ? '#b45309' : '#18191B',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -304,7 +304,7 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <strong style={{ fontSize: 12.5, color: '#0a0d10' }}>{run.agentName}</strong>
                       {run.orderId && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#1e473d', background: '#dff1ea', padding: '2px 8px', borderRadius: 9999 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#18191B', background: '#F8F0DF', padding: '2px 8px', borderRadius: 9999 }}>
                           Order {run.orderId}
                         </span>
                       )}
@@ -394,7 +394,7 @@ export const AIActivityAlertsModule: React.FC<AIActivityAlertsModuleProps> = ({
               <div style={{ fontWeight: 700, color: '#0a0d10', marginBottom: 6 }}>Recommendation & Context:</div>
               <p style={{ color: '#475569', lineHeight: 1.4, margin: 0 }}>{inspectRun.summary}</p>
               {inspectRun.orderId && (
-                <div style={{ marginTop: 10, color: '#1e473d', fontWeight: 700 }}>
+                <div style={{ marginTop: 10, color: '#18191B', fontWeight: 700 }}>
                   Impacted Order: {inspectRun.orderId}
                 </div>
               )}

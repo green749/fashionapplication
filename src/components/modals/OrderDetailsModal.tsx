@@ -19,8 +19,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
               {order.id} &bull; {order.productName}
             </h2>
             <span style={{
-              background: '#dff1ea',
-              color: '#1e473d',
+              background: '#FAF4EA',
+              color: '#18191B',
               padding: '3px 10px',
               borderRadius: 9999,
               fontSize: 10,
@@ -79,7 +79,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
             <div style={{ background: '#f8fafc', padding: '14px 16px', borderRadius: 18, border: '1px solid #e5e9ee' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <strong style={{ color: '#0a0d10', fontSize: 12 }}>Approved Contract Quotation</strong>
-                <strong style={{ fontSize: 14, color: '#1e473d' }}>
+                <strong style={{ fontSize: 14, color: '#18191B' }}>
                   ${order.quotation.pricePerUnit.toFixed(2)}/m (${order.quotation.totalPrice.toLocaleString()})
                 </strong>
               </div>
@@ -123,9 +123,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
           <button
             style={{
-              background: '#111315',
-              color: '#ffffff',
-              border: 'none',
+              background: '#79B4B7',
+              color: '#18191B',
+              border: '1px solid #67A4A7',
               borderRadius: 9999,
               padding: '8px 20px',
               fontSize: 11.5,

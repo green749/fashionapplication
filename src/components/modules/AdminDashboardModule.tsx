@@ -1,21 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  ArrowUpRight,
   TrendingUp,
-  AlertTriangle,
-  ArrowRight,
-  Package,
-  Layers,
-  Activity,
-  CheckCircle2,
-  Clock,
+  Search,
+  Bell,
+  MessageSquare,
+  MoreVertical,
+  MoreHorizontal,
+  SlidersHorizontal,
+  Filter,
+  ChevronDown,
+  Plus,
+  ArrowUpRight,
+  DollarSign,
+  History,
+  Wifi,
+  CreditCard,
+  PiggyBank,
   ShieldAlert,
-  ChevronRight,
-  ExternalLink
+  Layers,
+  Home,
+  CheckCircle2,
+  X,
+  ArrowUpDown,
+  ExternalLink,
+  Activity,
+  Boxes
 } from 'lucide-react';
 import type { Order, AppUser, MarketCommodity, AdminNavTab, AuditEntry } from '../../types';
+import './AdminDashboardModule.css';
 
-interface AdminDashboardModuleProps {
+export interface AdminDashboardModuleProps {
   orders: Order[];
   users: AppUser[];
   commodities: MarketCommodity[];
@@ -27,1143 +41,1274 @@ interface AdminDashboardModuleProps {
   onRejectQuotation?: (orderId: string, reason: string) => void;
 }
 
+interface TransactionItem {
+  id: string;
+  name: string;
+  category: string;
+  dateTime: string;
+  amount: string;
+  note: string;
+  status: 'Completed' | 'Pending' | 'Failed';
+  orderRef?: Order;
+}
+
+interface ActivityItem {
+  id: string;
+  user: string;
+  avatar?: string;
+  initials?: string;
+  action: string;
+  time: string;
+  section: 'Today' | 'Yesterday';
+  badgeColor?: string;
+}
+
+interface ProductionBatchItem {
+  id: string;
+  orderId: string;
+  clientName: string;
+  productName: string;
+  iconType: 'shield' | 'layers' | 'home';
+  currentMeters: number;
+  targetMeters: number;
+  percentage: number;
+  phase: string;
+  orderRef?: Order;
+}
+
+interface MonthlyCashflow {
+  month: string;
+  fullMonth: string;
+  income: number;
+  expense: number;
+  incomeDisplay: string;
+  expenseDisplay: string;
+}
+
 export const AdminDashboardModule: React.FC<AdminDashboardModuleProps> = ({
   orders,
+  users: _users,
+  commodities: _commodities,
+  auditLogs: _auditLogs,
   onNavigateTab,
   onSelectOrder,
-  onOpenOrderModal,
-  onApproveQuotation
+  onOpenOrderModal
 }) => {
-  // Time filter state for Revenue vs Profit Analytics
-  const [analyticsFilter, setAnalyticsFilter] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
-  const [hoveredMonth, setHoveredMonth] = useState<string | null>('Oct');
-  const [quickApprovedId, setQuickApprovedId] = useState<string | null>(null);
+  // -------------------------------------------------------------------------
+  // Search & Filter State
+  // -------------------------------------------------------------------------
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showNotificationDrawer, setShowNotificationDrawer] = useState<boolean>(false);
+  const [statTab, setStatTab] = useState<'income' | 'expense'>('income');
+  const [hoveredMonthIndex, setHoveredMonthIndex] = useState<number>(5); // Default to June (index 5)
+  const [showAddPlanModal, setShowAddPlanModal] = useState<boolean>(false);
+  const [newPlanClient, setNewPlanClient] = useState<string>('');
+  const [newPlanMeters, setNewPlanMeters] = useState<string>('');
 
-  // Financial chart series data
-  const financialData = [
-    { period: 'May', rev: 19.2, profit: 4.2, exp: 4.5, x: 20, revY: 62, profY: 26 },
-    { period: 'Jun', rev: 21.0, profit: 4.8, exp: 5.0, x: 60, revY: 68, profY: 30 },
-    { period: 'Jul', rev: 23.4, profit: 5.3, exp: 5.5, x: 100, revY: 74, profY: 34 },
-    { period: 'Aug', rev: 25.1, profit: 5.9, exp: 6.0, x: 140, revY: 80, profY: 38 },
-    { period: 'Sep', rev: 26.3, profit: 6.2, exp: 6.4, x: 180, revY: 84, profY: 41 },
-    { period: 'Oct', rev: 28.5, profit: 6.8, exp: 7.0, x: 220, revY: 92, profY: 46 }
-  ];
+  // Unified Modern Table Selection & Filters
+  const [selectedTxIds, setSelectedTxIds] = useState<string[]>(['LP-902']);
+  const [tableTab, setTableTab] = useState<'all' | 'on_track' | 'in_review' | 'at_risk'>('all');
+  const [tableFilterText, setTableFilterText] = useState<string>('');
 
-  // Delivery alerts click handler
-  const handleDeliveryAlertClick = (orderId: string) => {
-    const matched = orders.find((o) => o.id === orderId);
-    if (matched && onOpenOrderModal) {
-      onOpenOrderModal(matched);
-    } else if (onSelectOrder) {
-      onSelectOrder(orderId);
-      onNavigateTab('orders');
+  // -------------------------------------------------------------------------
+  // Production Batches (Derived from live Application Orders)
+  // -------------------------------------------------------------------------
+  const [customBatches, setCustomBatches] = useState<ProductionBatchItem[]>([]);
+
+  const productionBatches: ProductionBatchItem[] = useMemo(() => {
+    // Primary items from application orders
+    const liveItems: ProductionBatchItem[] = orders.slice(0, 4).map((o, idx) => {
+      const produced = o.producedMeters || Math.round(o.quantityMeters * (o.status === 'in_production' ? 0.65 : 0.3));
+      const target = o.quantityMeters;
+      const pct = Math.min(100, Math.round((produced / target) * 100));
+
+      const iconType: 'shield' | 'layers' | 'home' =
+        idx === 0 ? 'shield' : idx === 1 ? 'layers' : 'home';
+
+      return {
+        id: `batch_${o.id}`,
+        orderId: o.id,
+        clientName: o.clientName,
+        productName: o.productName || o.category,
+        iconType,
+        currentMeters: produced,
+        targetMeters: target,
+        percentage: pct,
+        phase: o.currentPhase,
+        orderRef: o
+      };
+    });
+
+    return [...liveItems, ...customBatches];
+  }, [orders, customBatches]);
+
+  const totalActiveMeters = useMemo(() => {
+    return orders.reduce((acc, o) => acc + (o.quantityMeters || 0), 0);
+  }, [orders]);
+
+  // -------------------------------------------------------------------------
+  // Cashflow 12-Month Mill Revenue & Opex (Bi-directional Bar Chart)
+  // -------------------------------------------------------------------------
+  const cashflowData: MonthlyCashflow[] = useMemo(() => [
+    { month: 'Jan', fullMonth: 'January 2026', income: 4800, expense: 3200, incomeDisplay: '₹48.0L', expenseDisplay: '₹32.0L' },
+    { month: 'Feb', fullMonth: 'February 2026', income: 4200, expense: 2900, incomeDisplay: '₹42.0L', expenseDisplay: '₹29.0L' },
+    { month: 'Mar', fullMonth: 'March 2026', income: 5600, expense: 3800, incomeDisplay: '₹56.0L', expenseDisplay: '₹38.0L' },
+    { month: 'Apr', fullMonth: 'April 2026', income: 5100, expense: 3400, incomeDisplay: '₹51.0L', expenseDisplay: '₹34.0L' },
+    { month: 'May', fullMonth: 'May 2026', income: 6200, expense: 4100, incomeDisplay: '₹62.0L', expenseDisplay: '₹41.0L' },
+    { month: 'Jun', fullMonth: 'June 2026 (Peak)', income: 6000, expense: 4000, incomeDisplay: '₹60.0L', expenseDisplay: '₹40.0L' },
+    { month: 'Jul', fullMonth: 'July 2026', income: 5800, expense: 3900, incomeDisplay: '₹58.0L', expenseDisplay: '₹39.0L' },
+    { month: 'Aug', fullMonth: 'August 2026', income: 6500, expense: 4200, incomeDisplay: '₹65.0L', expenseDisplay: '₹42.0L' },
+    { month: 'Sep', fullMonth: 'September 2026', income: 7100, expense: 4600, incomeDisplay: '₹71.0L', expenseDisplay: '₹46.0L' },
+    { month: 'Oct', fullMonth: 'October 2026 (Current)', income: 6800, expense: 4400, incomeDisplay: '₹48.6L', expenseDisplay: '₹37.4L' },
+    { month: 'Nov', fullMonth: 'November 2026 (Projected)', income: 7400, expense: 4700, incomeDisplay: '₹74.0L', expenseDisplay: '₹47.0L' },
+    { month: 'Dec', fullMonth: 'December 2026 (Projected)', income: 8000, expense: 5100, incomeDisplay: '₹80.0L', expenseDisplay: '₹51.0L' }
+  ], []);
+
+  // -------------------------------------------------------------------------
+  // Mill Production Orders & Commercial POs Table (Using Live Orders)
+  // -------------------------------------------------------------------------
+  const liveOrderTransactions: TransactionItem[] = useMemo(() => {
+    return orders.slice(0, 6).map((o) => {
+      let status: 'Completed' | 'Pending' | 'Failed' = 'Pending';
+      if (o.status === 'completed' || o.status === 'in_production' || o.riskStatus === 'on_track') {
+        status = 'Completed';
+      } else if (o.status === 'awaiting_admin_decision' || o.riskStatus === 'at_risk') {
+        status = 'Pending';
+      } else if (o.status === 'rejected_by_admin' || o.status === 'declined_by_client') {
+        status = 'Failed';
+      }
+
+      const amountVal = o.quotation?.totalPrice ?? Math.round(o.quantityMeters * 385);
+
+      return {
+        id: o.id,
+        name: `${o.clientName} (${o.id})`,
+        category: `${o.productName || o.category} • ${o.quantityMeters.toLocaleString()}m`,
+        dateTime: `${o.deadlineDate || '15 Nov 2026'}`,
+        amount: `₹${(amountVal >= 100000 ? (amountVal / 100000).toFixed(2) + 'L' : amountVal.toLocaleString())}`,
+        note: `${o.currentPhase} • ${(o.producedMeters || 0).toLocaleString()}m ready`,
+        status,
+        orderRef: o
+      };
+    });
+  }, [orders]);
+
+  const onTrackCount = useMemo(() => liveOrderTransactions.filter(t => t.status === 'Completed').length, [liveOrderTransactions]);
+  const inReviewCount = useMemo(() => liveOrderTransactions.filter(t => t.status === 'Pending').length, [liveOrderTransactions]);
+  const atRiskCount = useMemo(() => liveOrderTransactions.filter(t => t.status === 'Failed').length, [liveOrderTransactions]);
+
+  const displayedTransactions = useMemo(() => {
+    return liveOrderTransactions.filter((t) => {
+      if (tableTab === 'on_track' && t.status !== 'Completed') return false;
+      if (tableTab === 'in_review' && t.status !== 'Pending') return false;
+      if (tableTab === 'at_risk' && t.status !== 'Failed') return false;
+
+      const q = (tableFilterText || searchQuery).trim().toLowerCase();
+      if (!q) return true;
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.category.toLowerCase().includes(q) ||
+        t.note.toLowerCase().includes(q) ||
+        t.status.toLowerCase().includes(q) ||
+        t.id.toLowerCase().includes(q)
+      );
+    });
+  }, [liveOrderTransactions, tableTab, tableFilterText, searchQuery]);
+
+  // -------------------------------------------------------------------------
+  // Mill Telemetry & Agent Activity Feed (Authentic LoomPilot Events)
+  // -------------------------------------------------------------------------
+  const activities: ActivityItem[] = useMemo(() => [
+    {
+      id: 'act_1',
+      user: 'John Doe (MD)',
+      initials: 'JD',
+      badgeColor: '#79B4B7',
+      action: 'approved quotation review QT-1001 for ABC Garments (₹3,50,000)',
+      time: '16:05',
+      section: 'Today'
+    },
+    {
+      id: 'act_2',
+      user: 'Market Price Agent',
+      initials: 'AI',
+      badgeColor: '#0284c7',
+      action: 'detected Cotton Fabric surge +14.2%. Price buffers adjusted in PO drafts.',
+      time: '13:05',
+      section: 'Today'
+    },
+    {
+      id: 'act_3',
+      user: 'Ramesh Kumar (Supervisor)',
+      initials: 'RK',
+      badgeColor: '#16a34a',
+      action: 'reported 1,280 pcs stitched in Shed A; 24 weavers active on Airjets.',
+      time: '11:20',
+      section: 'Today'
+    },
+    {
+      id: 'act_4',
+      user: 'Airjet Telemetry #12',
+      initials: 'TX',
+      badgeColor: '#5A5A5A',
+      action: 'completed 2,000m weaving batch with 98.5% first-pass yield.',
+      time: '09:45',
+      section: 'Today'
+    },
+    {
+      id: 'act_5',
+      user: 'Client Assistant Agent',
+      initials: 'AI',
+      badgeColor: '#0284c7',
+      action: 'escalated discount request for StyleMart (TX-1025) to Managing Director.',
+      time: '21:05',
+      section: 'Yesterday'
+    },
+    {
+      id: 'act_6',
+      user: 'Procurement Agent',
+      initials: 'PO',
+      badgeColor: '#d97706',
+      action: 'cleared PO-1002 with Sri Textiles for 600m raw Cotton Fabric deficit.',
+      time: '17:30',
+      section: 'Yesterday'
     }
+  ], []);
+
+  // Notifications Drawer Data
+  const notifications = useMemo(() => [
+    {
+      id: 'notif_1',
+      title: 'Airjet Loom #7 Breakdown',
+      message: 'Tension sensor fault in Shed A. 1,200m curtain batch stalled (LP-904).',
+      timestamp: '15m ago',
+      tab: 'supervisors' as AdminNavTab
+    },
+    {
+      id: 'notif_2',
+      title: 'PO-1002 Cotton Deficit',
+      message: 'Shipment delayed 2 days by Sri Textiles. Immediate purchase clearance needed.',
+      timestamp: '45m ago',
+      tab: 'procurement' as AdminNavTab
+    },
+    {
+      id: 'notif_3',
+      title: 'Quotation QT-1001 Ready for Review',
+      message: '5,000m Cotton Shirts order (₹3,50,000) drafted by AI Agent awaiting MD sign-off.',
+      timestamp: '2h ago',
+      tab: 'quotations' as AdminNavTab
+    }
+  ], []);
+
+  // Add custom batch submit handler
+  const handleAddBatchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlanClient.trim() || !newPlanMeters.trim()) return;
+    const target = parseFloat(newPlanMeters) || 5000;
+    const newBatch: ProductionBatchItem = {
+      id: `batch_${Date.now()}`,
+      orderId: `LP-${Math.floor(1000 + Math.random() * 9000)}`,
+      clientName: newPlanClient.trim(),
+      productName: 'Cotton Garment Batch',
+      iconType: 'layers',
+      currentMeters: 0,
+      targetMeters: target,
+      percentage: 0,
+      phase: 'Yarn Inward'
+    };
+    setCustomBatches((prev) => [...prev, newBatch]);
+    setNewPlanClient('');
+    setNewPlanMeters('');
+    setShowAddPlanModal(false);
   };
 
-  const handleQuickApprove = (orderId: string) => {
-    setQuickApprovedId(orderId);
-    if (onApproveQuotation) {
-      onApproveQuotation(orderId);
-    }
-  };
+  const activeCashflow = cashflowData[hoveredMonthIndex] || cashflowData[5];
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 10,
-      height: '100%',
-      maxHeight: '100%',
-      overflow: 'hidden',
-      boxSizing: 'border-box',
-      padding: '2px 4px'
-    }}>
-      {/* ===================================================================
-          ROW 1: 4 KPI CARDS (Executive Performance Bar)
-          Card 1: Active Orders (Solid Dark Forest Green Hero Card)
-          Card 2: Completed Orders (Crisp White Card)
-          Card 3: Orders in Production (Crisp White Card)
-          Card 4: At-Risk Orders (White Card with subtle Red treatment)
-          =================================================================== */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 12,
-        flexShrink: 0
-      }}>
-        {/* KPI CARD 1: ACTIVE ORDERS (Dark Forest Green Solid Hero Card) */}
-        <div
-          onClick={() => onNavigateTab('orders')}
-          title="Click to view all Active Orders"
-          style={{
-            background: 'linear-gradient(135deg, #134e35 0%, #1a5e41 100%)',
-            borderRadius: 18,
-            padding: '14px 16px',
-            color: '#ffffff',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: '0 4px 14px rgba(19, 78, 53, 0.22)',
-            cursor: 'pointer',
-            transition: 'transform 0.15s ease'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#e8f5ec', letterSpacing: '-0.2px' }}>
-              Active Orders
-            </span>
-            <div style={{
-              width: 26,
-              height: 26,
-              borderRadius: '50%',
-              background: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#134e35',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
-            }}>
-              <ArrowUpRight size={14} strokeWidth={2.5} />
-            </div>
-          </div>
-          <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
-            124
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#86efac', fontWeight: 600 }}>
-            <Package size={12} strokeWidth={2.5} />
-            <span>Currently being processed</span>
+    <div className="db-viewport">
+      {/* =====================================================================
+          1. TOP NAVIGATION / HEADER
+          ===================================================================== */}
+      <header className="db-header">
+        <h1 className="db-header-title">Manufacturing Dashboard</h1>
+
+        <div className="db-header-center">
+          <div className="db-search-box">
+            <Search className="db-search-icon" size={16} />
+            <input
+              type="text"
+              className="db-search-input"
+              placeholder="Search orders, looms, clients, supervisors..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* KPI CARD 2: COMPLETED ORDERS */}
-        <div
-          onClick={() => onNavigateTab('orders')}
-          title="Click to inspect completed orders"
-          style={{
-            background: '#ffffff',
-            border: '1px solid #edf2ef',
-            borderRadius: 18,
-            padding: '14px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            boxShadow: '0 1px 6px rgba(0,0,0,0.02)'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', letterSpacing: '-0.2px' }}>
-              Completed Orders
-            </span>
-            <div style={{
-              width: 26,
-              height: 26,
-              borderRadius: '50%',
-              border: '1.5px solid #d1d5db',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#111827'
-            }}>
-              <ArrowUpRight size={14} strokeWidth={2.2} />
+        <div className="db-header-right">
+          {/* Chat Icon (Routes to Communications Module) */}
+          <button
+            className="db-icon-btn"
+            title="Open Client Communications"
+            onClick={() => onNavigateTab('chat')}
+          >
+            <MessageSquare size={17} />
+          </button>
+
+          {/* Notification Bell with red alert dot */}
+          <button
+            className="db-icon-btn"
+            title="System Alerts & Machine Telemetry"
+            onClick={() => setShowNotificationDrawer(true)}
+          >
+            <Bell size={17} />
+            <span className="db-badge-dot" />
+          </button>
+
+          {/* User Profile Pill */}
+          <div
+            className="db-user-pill"
+            title="John Doe — Managing Director & Operations Head"
+            onClick={() => onNavigateTab('users')}
+          >
+            <div className="db-user-avatar" style={{ background: '#222C2E', color: '#FEFBF3', fontWeight: 800 }}>
+              JD
             </div>
-          </div>
-          <div style={{ fontSize: 34, fontWeight: 800, color: '#111827', letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
-            48
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#164e32', fontWeight: 700 }}>
-            <TrendingUp size={12} strokeWidth={2.5} />
-            <span>+12.4% vs last month</span>
+            <span className="db-user-name">John Doe (MD)</span>
           </div>
         </div>
+      </header>
 
-        {/* KPI CARD 3: ORDERS IN PRODUCTION */}
-        <div
-          onClick={() => onNavigateTab('production')}
-          title="Click to track live production stages"
-          style={{
-            background: '#ffffff',
-            border: '1px solid #edf2ef',
-            borderRadius: 18,
-            padding: '14px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            boxShadow: '0 1px 6px rgba(0,0,0,0.02)'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', letterSpacing: '-0.2px' }}>
-              Orders in Production
-            </span>
-            <div style={{
-              width: 26,
-              height: 26,
-              borderRadius: '50%',
-              border: '1.5px solid #d1d5db',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#111827'
-            }}>
-              <ArrowUpRight size={14} strokeWidth={2.2} />
-            </div>
-          </div>
-          <div style={{ fontSize: 34, fontWeight: 800, color: '#111827', letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
-            58
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#64748b', fontWeight: 600 }}>
-            <Layers size={12} strokeWidth={2.5} color="#164e32" />
-            <span>Across six production stages</span>
-          </div>
-        </div>
-
-        {/* KPI CARD 4: AT-RISK ORDERS (Subtle Red Treatment) */}
-        <div
-          onClick={() => onNavigateTab('production')}
-          title="Click to view all At-Risk Orders requiring intervention"
-          style={{
-            background: '#ffffff',
-            border: '1px solid #fecaca',
-            borderRadius: 18,
-            padding: '14px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            boxShadow: '0 1px 6px rgba(220, 38, 38, 0.04)'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', letterSpacing: '-0.2px' }}>
-              At-Risk Orders
-            </span>
-            <div style={{
-              width: 26,
-              height: 26,
-              borderRadius: '50%',
-              background: '#fef2f2',
-              border: '1.5px solid #fca5a5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#dc2626'
-            }}>
-              <AlertTriangle size={13} strokeWidth={2.5} />
-            </div>
-          </div>
-          <div style={{ fontSize: 34, fontWeight: 800, color: '#dc2626', letterSpacing: '-0.8px', margin: '6px 0 4px' }}>
-            06
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#dc2626', fontWeight: 600 }}>
-            <ShieldAlert size={12} strokeWidth={2.5} />
-            <span>Requires Admin intervention</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ===================================================================
-          ROW 2: MIDDLE ROW (3 COLUMNS)
-          Col 1 (~44%): Revenue vs Profit Analytics (Line Chart with Filter)
-          Col 2 (~28%): Admin Action Centre (4 Pending Approvals & Executions)
-          Col 3 (~28%): Delivery & Order Alerts (Top 3 Urgent Delivery Bottlenecks)
-          =================================================================== */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1.4fr 1.05fr 1.05fr',
-        gap: 12,
-        flex: 1.15,
-        minHeight: 0
-      }}>
-        {/* =================================================================
-            COLUMN A: REVENUE VS PROFIT ANALYTICS
-            Clean Line Chart: Dark Green (Revenue) & Light Green (Profit)
-            ================================================================= */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #edf2ef',
-          padding: '14px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
-          minHeight: 0
-        }}>
-          {/* Header with Title, Legend & Time Filter */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-                Revenue vs Profit Analytics
+      {/* =====================================================================
+          2. MAIN 3-COLUMN DASHBOARD GRID
+          ===================================================================== */}
+      <div className="db-grid">
+        {/* ===================================================================
+            COLUMN 1: LEFT WIDGETS
+            =================================================================== */}
+        <div className="db-col-left">
+          {/* Card 1: Dark Green Telemetry / Operations Card */}
+          <div className="db-credit-card">
+            <div className="db-credit-card-top">
+              {/* 4-leaf loom telemetry emblem */}
+              <div className="db-card-brand-logo">
+                <span className="db-card-brand-dot" />
+                <span className="db-card-brand-dot" />
+                <span className="db-card-brand-dot" />
+                <span className="db-card-brand-dot" />
               </div>
-              <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500 }}>
-                Monthly Revenue: ₹28.5L &bull; Actual Profit: ₹6.8L (23.8%)
-              </div>
+              <Wifi size={18} className="db-contactless-icon" style={{ transform: 'rotate(90deg)', color: '#79B4B7' }} />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {/* Legend */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 9.5, fontWeight: 600 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#134e35' }}>
-                  <span style={{ width: 8, height: 3, borderRadius: 2, background: '#134e35' }} />
-                  Revenue
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#059669' }}>
-                  <span style={{ width: 8, height: 3, borderRadius: 2, background: '#22c55e' }} />
-                  Profit
-                </span>
-              </div>
+            <div className="db-card-holder">John Doe (Managing Director)</div>
 
-              {/* Time Filter Pills */}
-              <div style={{
-                display: 'flex',
-                background: '#f1f5f9',
-                borderRadius: 9999,
-                padding: '2px',
-                gap: 2
-              }}>
-                {(['monthly', 'quarterly', 'yearly'] as const).map((filter) => (
-                  <button
-                    key={filter}
-                    onClick={() => setAnalyticsFilter(filter)}
-                    style={{
-                      background: analyticsFilter === filter ? '#ffffff' : 'transparent',
-                      color: analyticsFilter === filter ? '#134e35' : '#64748b',
-                      fontWeight: analyticsFilter === filter ? 800 : 500,
-                      border: 'none',
-                      borderRadius: 9999,
-                      padding: '2px 8px',
-                      fontSize: 9.5,
-                      cursor: 'pointer',
-                      boxShadow: analyticsFilter === filter ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                      textTransform: 'capitalize'
-                    }}
-                  >
-                    {filter === 'monthly' ? 'Monthly' : filter === 'quarterly' ? 'Quarterly' : 'Yearly'}
-                  </button>
-                ))}
-              </div>
+            <div className="db-card-balance-section">
+              <div className="db-card-balance-lbl">Mill Production Capital</div>
+              <div className="db-card-balance-val">₹48,60,000</div>
+            </div>
+
+            <div className="db-credit-card-bottom" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#a4d8b5' }}>
+              <div>48 LOOMS ACTIVE</div>
+              <div>YIELD &nbsp; 98.5%</div>
             </div>
           </div>
 
-          {/* Clean Multi-Series Line Chart (Dark Green & Light Green) */}
-          <div style={{
-            position: 'relative',
-            flex: 1,
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            paddingTop: 8
-          }}>
-            <svg
-              viewBox="0 0 240 100"
-              style={{ width: '100%', height: '88px', overflow: 'visible' }}
+          {/* 4 Circular Action Buttons (Textile Operations) */}
+          <div className="db-quick-actions-row">
+            <button
+              className="db-quick-action-item"
+              title="Create New Production Order"
+              onClick={() => onNavigateTab('orders')}
             >
-              <defs>
-                <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#134e35" stopOpacity="0.16" />
-                  <stop offset="100%" stopColor="#134e35" stopOpacity="0.0" />
-                </linearGradient>
-                <linearGradient id="profitFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22c55e" stopOpacity="0.16" />
-                  <stop offset="100%" stopColor="#22c55e" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
+              <div className="db-action-circle-btn">
+                <Plus size={18} />
+              </div>
+              <span className="db-quick-action-label">+ Order</span>
+            </button>
 
-              {/* Grid guide lines */}
-              <line x1="10" y1="20" x2="230" y2="20" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
-              <line x1="10" y1="50" x2="230" y2="50" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
-              <line x1="10" y1="80" x2="230" y2="80" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+            <button
+              className="db-quick-action-item"
+              title="Handover Batches to Supervisor"
+              onClick={() => onNavigateTab('supervisors')}
+            >
+              <div className="db-action-circle-btn">
+                <ArrowUpRight size={18} />
+              </div>
+              <span className="db-quick-action-label">↗ Handover</span>
+            </button>
 
-              {/* Revenue Area Fill & Line (Dark Green #134e35) */}
-              <path
-                d="M 20 62 L 60 56 L 100 48 L 140 42 L 180 36 L 220 22 L 220 85 L 20 85 Z"
-                fill="url(#revenueFill)"
+            <button
+              className="db-quick-action-item"
+              title="Procure Raw Materials & Yarn"
+              onClick={() => onNavigateTab('procurement')}
+            >
+              <div className="db-action-circle-btn">
+                <Boxes size={18} />
+              </div>
+              <span className="db-quick-action-label">₹ Procure</span>
+            </button>
+
+            <button
+              className="db-quick-action-item"
+              title="View Loom Telemetry & History"
+              onClick={() => onNavigateTab('production')}
+            >
+              <div className="db-action-circle-btn">
+                <History size={18} />
+              </div>
+              <span className="db-quick-action-label">Telemetry</span>
+            </button>
+          </div>
+
+          {/* Card 2: Daily Weaving Target Card */}
+          <div className="db-card">
+            <div className="db-card-header">
+              <h2 className="db-card-title">Daily Loom Output</h2>
+              <button className="db-card-action-btn" onClick={() => onNavigateTab('production')}>
+                <MoreVertical size={15} />
+              </button>
+            </div>
+
+            <div className="db-daily-limit-info">
+              <span>2,350m woven of 2,700m target</span>
+              <span className="db-daily-limit-percent">87.0%</span>
+            </div>
+
+            <div className="db-progress-track">
+              <div
+                className="db-progress-fill"
+                style={{ width: '87.0%', background: '#79B4B7' }}
               />
-              <path
-                d="M 20 62 L 60 56 L 100 48 L 140 42 L 180 36 L 220 22"
-                fill="none"
-                stroke="#134e35"
-                strokeWidth="2.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: '#6b7280', marginTop: 6 }}>
+              <span>Pacing: 142 m/hr</span>
+              <span style={{ color: '#18191B', fontWeight: 600 }}>Sheds A & B Online</span>
+            </div>
+          </div>
 
-              {/* Profit Area Fill & Line (Light Green #22c55e) */}
-              <path
-                d="M 20 78 L 60 74 L 100 68 L 140 64 L 180 60 L 220 54 L 220 85 L 20 85 Z"
-                fill="url(#profitFill)"
-              />
-              <path
-                d="M 20 78 L 60 74 L 100 68 L 140 64 L 180 60 L 220 54"
-                fill="none"
-                stroke="#22c55e"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+          {/* Card 3: Active Production Batches Card */}
+          <div className="db-card">
+            <div className="db-saving-header-row">
+              <h2 className="db-card-title">Production Batches</h2>
+              <button
+                className="db-add-plan-link"
+                onClick={() => onNavigateTab('orders')}
+                title="View all orders in pipeline"
+              >
+                <Plus size={13} />
+                View All ({orders.length})
+              </button>
+            </div>
 
-              {/* Expected Profit Projected Dashed Segment */}
-              <line x1="180" y1="58" x2="220" y2="50" stroke="#86efac" strokeWidth="2" strokeDasharray="3 2" />
+            <div className="db-saving-total-lbl">Active Pipeline Volume</div>
+            <div className="db-saving-total-val">{totalActiveMeters.toLocaleString()} metres</div>
 
-              {/* Data points */}
-              {financialData.map((d) => (
-                <g key={d.period} onMouseEnter={() => setHoveredMonth(d.period)} style={{ cursor: 'pointer' }}>
-                  {/* Revenue point */}
-                  <circle cx={d.x} cy={100 - d.revY * 0.78} r="3.5" fill="#ffffff" stroke="#134e35" strokeWidth="2" />
-                  {/* Profit point */}
-                  <circle cx={d.x} cy={100 - d.profY * 0.78} r="3" fill="#ffffff" stroke="#22c55e" strokeWidth="2" />
-                </g>
-              ))}
-
-              {/* October Active Tooltip Pill */}
-              {hoveredMonth === 'Oct' && (
-                <g transform="translate(160, 2)">
-                  <rect x="0" y="0" width="76" height="20" rx="6" fill="#111827" />
-                  <text x="38" y="13.5" fill="#ffffff" fontSize="8" fontWeight="700" textAnchor="middle">
-                    ₹28.5L / ₹6.8L (24%)
-                  </text>
-                </g>
-              )}
-            </svg>
-
-            {/* Bottom X-Axis Labels */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 10px', marginTop: 2 }}>
-              {financialData.map((d) => (
-                <span
-                  key={d.period}
-                  onMouseEnter={() => setHoveredMonth(d.period)}
-                  style={{
-                    fontSize: 10,
-                    fontWeight: hoveredMonth === d.period ? 800 : 500,
-                    color: hoveredMonth === d.period ? '#134e35' : '#94a3b8',
-                    cursor: 'pointer'
+            <div className="db-saving-plans-list">
+              {productionBatches.map((batch) => (
+                <div
+                  key={batch.id}
+                  className="db-saving-plan-item"
+                  style={{ cursor: batch.orderRef ? 'pointer' : 'default' }}
+                  onClick={() => {
+                    if (batch.orderRef && onOpenOrderModal) {
+                      onOpenOrderModal(batch.orderRef);
+                    } else if (batch.orderRef && onSelectOrder) {
+                      onSelectOrder(batch.orderRef.id);
+                      onNavigateTab('orders');
+                    }
                   }}
                 >
-                  {d.period}
-                </span>
+                  <div className="db-plan-item-top">
+                    <div className="db-plan-item-left">
+                      <div className="db-plan-item-icon-box">
+                        {batch.iconType === 'shield' && <ShieldAlert size={14} />}
+                        {batch.iconType === 'layers' && <Layers size={14} />}
+                        {batch.iconType === 'home' && <Home size={14} />}
+                      </div>
+                      <span className="db-plan-item-name">{batch.clientName} ({batch.orderId})</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: '#52796f', fontWeight: 600 }}>{batch.phase}</span>
+                  </div>
+
+                  <div className="db-plan-item-stats">
+                    <span className="db-plan-current">
+                      {batch.currentMeters.toLocaleString()}m &nbsp; {batch.percentage}%
+                    </span>
+                    <span className="db-plan-target">
+                      Target {batch.targetMeters.toLocaleString()}m
+                    </span>
+                  </div>
+
+                  <div className="db-progress-track">
+                    <div
+                      className="db-progress-fill"
+                      style={{
+                        width: `${batch.percentage}%`,
+                        background: batch.percentage >= 70 ? '#79B4B7' : batch.percentage >= 40 ? '#5A5A5A' : '#f59e0b'
+                      }}
+                    />
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* =================================================================
-            COLUMN B: ADMIN ACTION CENTRE
-            Pending Approvals: Quotations, POs, Discounts, Price Revisions
-            ================================================================= */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #edf2ef',
-          padding: '14px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
-          minHeight: 0
-        }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-                Admin Action Centre
-              </span>
-              <span style={{
-                fontSize: 9,
-                fontWeight: 800,
-                background: '#fee2e2',
-                color: '#dc2626',
-                padding: '1px 6px',
-                borderRadius: 9999
-              }}>
-                4 Pending
-              </span>
-            </div>
-            <button
-              onClick={() => onNavigateTab('quotations')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#164e32',
-                fontSize: 10,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2
-              }}
-            >
-              View all
-              <ChevronRight size={12} />
-            </button>
-          </div>
-
-          {/* Pending Decisions List (3-4 items) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minHeight: 0, justifyContent: 'center' }}>
-            {/* Action 1: Quotation Approval */}
-            <div
-              onClick={() => onNavigateTab('quotations')}
-              title="Click to review quotation"
-              style={{
-                background: '#f8faf9',
-                border: '1px solid #edf2ef',
-                borderRadius: 10,
-                padding: '5px 8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#111827' }}>
-                    Quote &bull; TX-1024
-                  </span>
-                  <span style={{ fontSize: 8, color: '#dc2626', background: '#fef2f2', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
-                    High
-                  </span>
+        {/* ===================================================================
+            COLUMN 2: CENTER WIDGETS
+            =================================================================== */}
+        <div className="db-col-center">
+          {/* Top 3 KPI Summary Cards */}
+          <div className="db-kpi-grid">
+            {/* KPI 1: Expected Revenue */}
+            <div className="db-kpi-card" onClick={() => onNavigateTab('quotations')} style={{ cursor: 'pointer' }}>
+              <div className="db-kpi-card-top">
+                <div className="db-kpi-icon-badge">
+                  <DollarSign size={17} />
                 </div>
-                <div style={{ fontSize: 8.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  ABC Garments &bull; ₹3.50L (18% margin)
-                </div>
+                <button className="db-card-action-btn">
+                  <MoreVertical size={15} />
+                </button>
               </div>
-              <span style={{ fontSize: 8.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>2h wait</span>
+
+              <div className="db-kpi-pill db-kpi-pill-green">
+                <TrendingUp size={11} />
+                +17.8% projected
+              </div>
+
+              <div className="db-kpi-value">₹48.60L</div>
+              <div className="db-kpi-label">Expected Revenue</div>
             </div>
 
-            {/* Action 2: Purchase Order Approval */}
-            <div
-              onClick={() => onNavigateTab('procurement')}
-              title="Click to review purchase order"
-              style={{
-                background: '#f8faf9',
-                border: '1px solid #edf2ef',
-                borderRadius: 10,
-                padding: '5px 8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#111827' }}>
-                    Purchase PO &bull; PO-1001
-                  </span>
-                  <span style={{ fontSize: 8, color: '#dc2626', background: '#fef2f2', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
-                    Urgent
-                  </span>
+            {/* KPI 2: Expected Profit */}
+            <div className="db-kpi-card" onClick={() => onNavigateTab('orders')} style={{ cursor: 'pointer' }}>
+              <div className="db-kpi-card-top">
+                <div className="db-kpi-icon-badge">
+                  <CreditCard size={17} />
                 </div>
-                <div style={{ fontSize: 8.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  Sri Textiles &bull; 600m Cotton Fabric shortage
-                </div>
+                <button className="db-card-action-btn">
+                  <MoreVertical size={15} />
+                </button>
               </div>
-              <span style={{ fontSize: 8.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>5h wait</span>
+
+              <div className="db-kpi-pill db-kpi-pill-green">
+                <TrendingUp size={11} />
+                23.0% net margin
+              </div>
+
+              <div className="db-kpi-value">₹11.20L</div>
+              <div className="db-kpi-label">Expected Net Profit</div>
             </div>
 
-            {/* Action 3: Client Discount Request */}
-            <div
-              onClick={() => onNavigateTab('chat')}
-              title="Click to resolve client discount request"
-              style={{
-                background: '#f8faf9',
-                border: '1px solid #edf2ef',
-                borderRadius: 10,
-                padding: '5px 8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#111827' }}>
-                    Discount &bull; TX-1025
-                  </span>
-                  <span style={{ fontSize: 8, color: '#b45309', background: '#fef3c7', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
-                    Med
-                  </span>
+            {/* KPI 3: On-Time Delivery */}
+            <div className="db-kpi-card" onClick={() => onNavigateTab('deliveries')} style={{ cursor: 'pointer' }}>
+              <div className="db-kpi-card-top">
+                <div className="db-kpi-icon-badge">
+                  <PiggyBank size={17} />
                 </div>
-                <div style={{ fontSize: 8.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  StyleMart &bull; -5% price cut to $3.80/m
-                </div>
+                <button className="db-card-action-btn">
+                  <MoreVertical size={15} />
+                </button>
               </div>
-              <span style={{ fontSize: 8.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>4h wait</span>
-            </div>
 
-            {/* Action 4: Quotation Price Revision */}
-            <div
-              onClick={() => onNavigateTab('priceCentre')}
-              title="Click to inspect price revision"
-              style={{
-                background: '#f8faf9',
-                border: '1px solid #edf2ef',
-                borderRadius: 10,
-                padding: '5px 8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#111827' }}>
-                    Revision &bull; PR-108
-                  </span>
-                  <span style={{ fontSize: 8, color: '#475569', background: '#f1f5f9', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
-                    Normal
-                  </span>
-                </div>
-                <div style={{ fontSize: 8.5, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  FabIndia &bull; Yarn surge update +4.2%
-                </div>
+              <div className="db-kpi-pill db-kpi-pill-green">
+                <CheckCircle2 size={11} />
+                46/48 dispatches
               </div>
-              <span style={{ fontSize: 8.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>1d wait</span>
+
+              <div className="db-kpi-value">94.6%</div>
+              <div className="db-kpi-label">On-Time Delivery Rate</div>
             </div>
           </div>
 
-          {/* Prominent Action Button */}
-          <button
-            onClick={() => {
-              if (quickApprovedId) {
-                onNavigateTab('quotations');
-              } else {
-                handleQuickApprove('TX-1024');
-              }
-            }}
-            style={{
-              background: quickApprovedId ? '#059669' : 'linear-gradient(135deg, #134e35 0%, #1a5e41 100%)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 9999,
-              padding: '9px 16px',
-              fontSize: 12,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(19, 78, 53, 0.25)',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            {quickApprovedId ? <CheckCircle2 size={15} /> : <CheckCircle2 size={15} />}
-            <span>{quickApprovedId ? 'Quotation TX-1024 Approved' : 'Review Pending Approvals'}</span>
-          </button>
-        </div>
-
-        {/* =================================================================
-            COLUMN C: DELIVERY & ORDER ALERTS
-            Top 3 Urgent Delivery Orders with Bottleneck Reasons
-            ================================================================= */}
-        <div style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #edf2ef',
-          padding: '14px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
-          minHeight: 0
-        }}>
-          {/* Header with 'View All' Pill Button */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-              Delivery &amp; Order Alerts
-            </span>
-            <button
-              onClick={() => onNavigateTab('orders')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                border: '1.5px solid #d1d5db',
-                borderRadius: 9999,
-                padding: '3px 10px',
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#111827',
-                background: '#ffffff',
-                cursor: 'pointer'
-              }}
-            >
-              View All
-              <ArrowRight size={11} strokeWidth={2.5} />
-            </button>
-          </div>
-
-          {/* 3 Urgent Order Alerts */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1, justifyContent: 'center' }}>
-            {/* Alert 1: LP-902 */}
-            <div
-              onClick={() => handleDeliveryAlertClick('LP-902')}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 9,
-                padding: '5px 7px',
-                borderRadius: 8,
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                background: '#ef4444',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                marginTop: 1
-              }}>
-                <AlertTriangle size={12} strokeWidth={2.5} />
+          {/* Cashflow Bar Chart Card (Mill Revenue vs Opex) */}
+          <div className="db-card db-cashflow-card">
+            <div className="db-card-header" style={{ marginBottom: 4 }}>
+              <h2 className="db-card-title">Mill Cashflow & Turnover</h2>
+              <div className="db-dropdown-pill">
+                FY 2026 <ChevronDown size={12} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#991b1b' }}>
-                    LP-902 &bull; ABC Garments
-                  </span>
-                  <span style={{ fontSize: 8, fontWeight: 800, color: '#dc2626' }}>
-                    +4d delay
-                  </span>
+            </div>
+
+            <div className="db-cashflow-subhead">
+              <div>
+                <div className="db-cashflow-balance-lbl">YTD Factory Turnover</div>
+                <div className="db-cashflow-balance-val">₹56,20,000</div>
+              </div>
+
+              <div className="db-cashflow-legend">
+                <div className="db-legend-item">
+                  <span className="db-legend-box" style={{ background: '#79B4B7' }} />
+                  <span>Revenue (₹)</span>
                 </div>
-                <span style={{ fontSize: 8.5, color: '#7f1d1d', marginTop: 1, lineHeight: 1.2 }}>
-                  Raw material shortage (600m Cotton Fabric awaiting PO-1001)
-                </span>
-                <span style={{ fontSize: 8, color: '#991b1b', marginTop: 1 }}>
-                  Deadline: 04 Nov 2026 &bull; <strong style={{ color: '#dc2626' }}>High Risk</strong>
-                </span>
-              </div>
-            </div>
-
-            {/* Alert 2: LP-904 */}
-            <div
-              onClick={() => handleDeliveryAlertClick('LP-904')}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 9,
-                padding: '5px 7px',
-                borderRadius: 8,
-                background: '#fffbeb',
-                border: '1px solid #fde68a',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                background: '#f59e0b',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                marginTop: 1
-              }}>
-                <Clock size={12} strokeWidth={2.5} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#92400e' }}>
-                    LP-904 &bull; StyleMart
-                  </span>
-                  <span style={{ fontSize: 8, fontWeight: 800, color: '#d97706' }}>
-                    +2d delay
-                  </span>
+                <div className="db-legend-item">
+                  <span className="db-legend-box" style={{ background: '#5A5A5A' }} />
+                  <span>Material & Opex (₹)</span>
                 </div>
-                <span style={{ fontSize: 8.5, color: '#78350f', marginTop: 1, lineHeight: 1.2 }}>
-                  Production below target (Airjet loom #7 recalibration)
-                </span>
-                <span style={{ fontSize: 8, color: '#92400e', marginTop: 1 }}>
-                  Deadline: 08 Nov 2026 &bull; <strong style={{ color: '#d97706' }}>Medium Risk</strong>
-                </span>
               </div>
             </div>
 
-            {/* Alert 3: LP-901 */}
-            <div
-              onClick={() => handleDeliveryAlertClick('LP-901')}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 9,
-                padding: '5px 7px',
-                borderRadius: 8,
-                background: '#f8faf9',
-                border: '1px solid #edf2ef',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                background: '#0d9488',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                marginTop: 1
-              }}>
-                <Activity size={12} strokeWidth={2.5} />
+            {/* 12-Month Dual Bi-Directional Bar Chart */}
+            <div className="db-cashflow-chart-container">
+              {/* Y-Axis Guidelines */}
+              <div className="db-cashflow-y-guide" style={{ top: 22 }}>
+                <span>₹80L</span>
+                <div className="db-cashflow-y-line" />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#111827' }}>
-                    LP-901 &bull; FabIndia
-                  </span>
-                  <span style={{ fontSize: 8, fontWeight: 800, color: '#0d9488' }}>
-                    +1d delay
-                  </span>
-                </div>
-                <span style={{ fontSize: 8.5, color: '#64748b', marginTop: 1, lineHeight: 1.2 }}>
-                  Continuous dyeing cycle bottleneck (Drying pace -15%)
-                </span>
-                <span style={{ fontSize: 8, color: '#64748b', marginTop: 1 }}>
-                  Deadline: 12 Nov 2026 &bull; <strong style={{ color: '#059669' }}>Low Risk</strong>
-                </span>
+              <div className="db-cashflow-y-guide" style={{ top: 58 }}>
+                <span>₹40L</span>
+                <div className="db-cashflow-y-line" />
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
+              <div className="db-cashflow-y-guide" style={{ top: 94 }}>
+                <span>0</span>
+                <div className="db-cashflow-y-line" style={{ borderBottomColor: '#d6e2d8' }} />
+              </div>
+              <div className="db-cashflow-y-guide" style={{ top: 130 }}>
+                <span>-₹40L</span>
+                <div className="db-cashflow-y-line" />
+              </div>
+              <div className="db-cashflow-y-guide" style={{ top: 166 }}>
+                <span>-₹80L</span>
+                <div className="db-cashflow-y-line" />
+              </div>
 
-      {/* ===================================================================
-          ROW 3: BOTTOM ROW (3 PANELS)
-          Panel A (~44%): Factory Resource Utilization (Loom 82%, Workforce 88%, Output 76%)
-          Panel B (~28%): Order Status Distribution (124 Orders Donut Chart)
-          Panel C (~28%): Today's Factory Performance (Live Floor Monitor: 2,350m / 2,700m)
-          =================================================================== */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1.4fr 1.05fr 1.05fr',
-        gap: 12,
-        flex: 1.15,
-        minHeight: 0
-      }}>
-        {/* =================================================================
-            PANEL A: FACTORY RESOURCE UTILIZATION
-            Horizontal progress bars for Loom, Workforce & Output Capacity
-            ================================================================= */}
-        <div
-          onClick={() => onNavigateTab('supervisors')}
-          title="Click to view full Supervisor & Resource Allocation"
-          style={{
-            background: '#ffffff',
-            borderRadius: 20,
-            border: '1px solid #edf2ef',
-            padding: '14px 18px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
-            cursor: 'pointer',
-            minHeight: 0
-          }}
-        >
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-              Factory Resource Utilization
-            </span>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              border: '1.5px solid #d1d5db',
-              borderRadius: 9999,
-              padding: '3px 10px',
-              fontSize: 10.5,
-              fontWeight: 600,
-              color: '#164e32',
-              background: '#eaf6ef'
-            }}>
-              Details
-              <ExternalLink size={10} />
-            </span>
-          </div>
+              {/* Month Columns */}
+              <div className="db-chart-columns-wrap">
+                {cashflowData.map((item, idx) => {
+                  const isHovered = hoveredMonthIndex === idx;
+                  // Max height 45px per bar half
+                  const incomeHeight = Math.max(12, Math.round((item.income / 8000) * 45));
+                  const expenseHeight = Math.max(10, Math.round((item.expense / 8000) * 45));
 
-          {/* 3 Horizontal Progress Indicators */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1, justifyContent: 'center' }}>
-            {/* Loom Utilization: 82% */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#111827', marginBottom: 3 }}>
-                <span>Loom Utilization</span>
-                <span style={{ color: '#164e32' }}>82% <span style={{ fontSize: 9, fontWeight: 500, color: '#64748b' }}>(39/48 active)</span></span>
-              </div>
-              <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
-                <div style={{ width: '82%', height: '100%', background: '#164e32', borderRadius: 9999 }} />
-              </div>
-            </div>
+                  return (
+                    <div
+                      key={item.month}
+                      className={`db-month-col ${isHovered ? 'is-active' : ''}`}
+                      onMouseEnter={() => setHoveredMonthIndex(idx)}
+                      onClick={() => setHoveredMonthIndex(idx)}
+                    >
+                      {/* Tooltip on active month */}
+                      {isHovered && (
+                        <div className="db-chart-tooltip">
+                          <span className="db-tooltip-title">{activeCashflow.fullMonth}</span>
+                          <div className="db-tooltip-row">
+                            <span>Revenue:</span>
+                            <span style={{ fontWeight: 700, color: '#18191B' }}>
+                              {activeCashflow.incomeDisplay}
+                            </span>
+                          </div>
+                          <div className="db-tooltip-row">
+                            <span>Opex:</span>
+                            <span style={{ fontWeight: 700, color: '#2e7d32' }}>
+                              {activeCashflow.expenseDisplay}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
-            {/* Workforce Utilization: 88% */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#111827', marginBottom: 3 }}>
-                <span>Workforce Utilization</span>
-                <span style={{ color: '#059669' }}>88% <span style={{ fontSize: 9, fontWeight: 500, color: '#64748b' }}>(141/160 present)</span></span>
-              </div>
-              <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
-                <div style={{ width: '88%', height: '100%', background: '#22c55e', borderRadius: 9999 }} />
-              </div>
-            </div>
+                      {/* Bar Stack: Income (points up), Expense (points down) */}
+                      <div className="db-bars-stack">
+                        <div
+                          className="db-bar-income"
+                          style={{
+                            height: `${incomeHeight}px`,
+                            position: 'absolute',
+                            bottom: '52px'
+                          }}
+                        />
+                        <div
+                          className="db-bar-expense"
+                          style={{
+                            height: `${expenseHeight}px`,
+                            position: 'absolute',
+                            top: '53px'
+                          }}
+                        />
+                      </div>
 
-            {/* Production Capacity Utilization: 76% */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#111827', marginBottom: 3 }}>
-                <span>Production Capacity Utilization</span>
-                <span style={{ color: '#0d9488' }}>76% <span style={{ fontSize: 9, fontWeight: 500, color: '#64748b' }}>(2,660m benchmark)</span></span>
-              </div>
-              <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
-                <div style={{ width: '76%', height: '100%', background: '#0d9488', borderRadius: 9999 }} />
+                      <span className="db-month-label">{item.month}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          {/* Bottom Floor Alert */}
-          <div style={{ fontSize: 9, color: '#64748b', background: '#f8faf9', padding: '3px 8px', borderRadius: 6, border: '1px solid #edf2ef' }}>
-            Loom #7 recalibration scheduled at 14:00 (Shed A) &bull; Zero bottleneck on Shed B
+          {/* Unified Modern Table: Factory Orders & POs (Matching Reference Design) */}
+          <div className="modern-table-card" style={{ marginTop: 4 }}>
+            {/* Folder-style Tabs Navigation with Count Badges */}
+            <div className="modern-table-tabs-bar">
+              <button
+                type="button"
+                className={`modern-table-tab ${tableTab === 'all' ? 'active' : ''}`}
+                onClick={() => setTableTab('all')}
+              >
+                <Boxes size={14} />
+                <span>All Orders</span>
+                <span className="modern-table-tab-badge">{liveOrderTransactions.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`modern-table-tab ${tableTab === 'on_track' ? 'active' : ''}`}
+                onClick={() => setTableTab('on_track')}
+              >
+                <Activity size={14} />
+                <span>On Track</span>
+                <span className="modern-table-tab-badge">{onTrackCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`modern-table-tab ${tableTab === 'in_review' ? 'active' : ''}`}
+                onClick={() => setTableTab('in_review')}
+              >
+                <CreditCard size={14} />
+                <span>In Review</span>
+                <span className="modern-table-tab-badge">{inReviewCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`modern-table-tab ${tableTab === 'at_risk' ? 'active' : ''}`}
+                onClick={() => setTableTab('at_risk')}
+              >
+                <ShieldAlert size={14} />
+                <span>At Risk</span>
+                <span className="modern-table-tab-badge">{atRiskCount}</span>
+              </button>
+            </div>
+
+            {/* Toolbar: Filter search pill, settings sliders toggle, and +New Order CTA */}
+            <div className="modern-table-toolbar">
+              <div className="modern-table-filter-group">
+                <div className="modern-search-pill">
+                  <Filter size={13} color="#94a3b8" />
+                  <input
+                    type="text"
+                    placeholder="Filter factory orders & POs..."
+                    value={tableFilterText}
+                    onChange={(e) => setTableFilterText(e.target.value)}
+                  />
+                  {tableFilterText && (
+                    <button
+                      type="button"
+                      onClick={() => setTableFilterText('')}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="modern-filter-btn"
+                  title="Filter options"
+                  onClick={() => setTableTab(prev => prev === 'all' ? 'on_track' : 'all')}
+                >
+                  <SlidersHorizontal size={14} />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="modern-action-pill-btn"
+                onClick={() => onNavigateTab('orders')}
+              >
+                <Plus size={14} />
+                <span>New Order</span>
+              </button>
+            </div>
+
+            {/* Table Container */}
+            <div className="modern-data-table-wrapper">
+              <table className="modern-data-table">
+                <thead>
+                  <tr>
+                    <th className="col-checkbox">
+                      <input
+                        type="checkbox"
+                        className="modern-checkbox"
+                        checked={
+                          displayedTransactions.length > 0 &&
+                          displayedTransactions.every((tx) => selectedTxIds.includes(tx.id))
+                        }
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const allIds = Array.from(new Set([...selectedTxIds, ...displayedTransactions.map((t) => t.id)]));
+                            setSelectedTxIds(allIds);
+                          } else {
+                            const curDispIds = new Set(displayedTransactions.map((t) => t.id));
+                            setSelectedTxIds(selectedTxIds.filter((id) => !curDispIds.has(id)));
+                          }
+                        }}
+                      />
+                    </th>
+                    <th>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        Order # <ArrowUpDown size={11} />
+                      </div>
+                    </th>
+                    <th>Company Name</th>
+                    <th>Status</th>
+                    <th>Total</th>
+                    <th>Deadline</th>
+                    <th>Last Updated</th>
+                    <th style={{ width: 44, textAlign: 'center' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ padding: 28, textAlign: 'center', color: '#94a3b8' }}>
+                        No orders found matching the filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    displayedTransactions.map((tx) => {
+                      const isSelected = selectedTxIds.includes(tx.id);
+                      return (
+                        <tr
+                          key={tx.id}
+                          className={isSelected ? 'is-selected' : ''}
+                          style={{ cursor: tx.orderRef ? 'pointer' : 'default' }}
+                          onClick={() => {
+                            if (tx.orderRef && onOpenOrderModal) {
+                              onOpenOrderModal(tx.orderRef);
+                            } else if (tx.orderRef && onSelectOrder) {
+                              onSelectOrder(tx.orderRef.id);
+                              onNavigateTab('orders');
+                            }
+                          }}
+                        >
+                          <td
+                            className="col-checkbox"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              className="modern-checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (isSelected) {
+                                  setSelectedTxIds(selectedTxIds.filter((id) => id !== tx.id));
+                                } else {
+                                  setSelectedTxIds([...selectedTxIds, tx.id]);
+                                }
+                              }}
+                            />
+                          </td>
+                          <td style={{ fontWeight: 700, color: '#18191B', letterSpacing: '-0.01em' }}>
+                            #{tx.id}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontWeight: 600, color: '#111827' }}>
+                                {tx.orderRef?.clientName || tx.name}
+                              </span>
+                              <span style={{ fontSize: 10.5, color: '#64748b' }}>
+                                {tx.category}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span
+                              className={`status-dot-pill ${tx.status === 'Completed'
+                                  ? 'fulfilled'
+                                  : tx.status === 'Pending'
+                                    ? 'pending'
+                                    : 'failed'
+                                }`}
+                            >
+                              {tx.status === 'Completed' ? 'FULFILLED' : tx.status === 'Pending' ? 'IN REVIEW' : 'AT RISK'}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                            {tx.amount}
+                          </td>
+                          <td style={{ color: '#64748b', fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                            {tx.dateTime}
+                          </td>
+                          <td style={{ color: '#64748b', fontSize: 11, maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {tx.note}
+                          </td>
+                          <td
+                            style={{ textAlign: 'center' }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="modern-table-row-action"
+                              title="More options"
+                              onClick={() => {
+                                if (tx.orderRef && onOpenOrderModal) {
+                                  onOpenOrderModal(tx.orderRef);
+                                }
+                              }}
+                            >
+                              <MoreHorizontal size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        {/* =================================================================
-            PANEL B: ORDER STATUS DISTRIBUTION
-            Order count distribution across mutually exclusive stages
-            ================================================================= */}
-        <div
-          onClick={() => onNavigateTab('orders')}
-          title="Click to explore Orders pipeline by status"
-          style={{
-            background: '#ffffff',
-            borderRadius: 20,
-            border: '1px solid #edf2ef',
-            padding: '14px 18px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: '0 1px 6px rgba(0,0,0,0.02)',
-            cursor: 'pointer',
-            minHeight: 0
-          }}
-        >
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.3px' }}>
-            Order Status Distribution
-          </div>
+        {/* ===================================================================
+            COLUMN 3: RIGHT WIDGETS
+            =================================================================== */}
+        <div className="db-col-right">
+          {/* Card 1: Production Allocation Donut Card */}
+          <div className="db-card">
+            <div className="db-card-header" style={{ marginBottom: 4 }}>
+              <h2 className="db-card-title">Production Allocation</h2>
+              <div className="db-dropdown-pill">
+                Oct 2026 <ChevronDown size={12} />
+              </div>
+            </div>
 
-          {/* Semi-Circular Arc / Donut Chart */}
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            marginTop: 2
-          }}>
-            <svg width="170" height="88" viewBox="0 0 170 88">
-              {/* Completed: 30 orders (Forest Green) */}
-              <path
-                d="M 15 80 A 70 70 0 0 1 155 80"
-                fill="none"
-                stroke="#d0ebd8"
-                strokeWidth="15"
-                strokeLinecap="round"
-              />
+            {/* Income / Expense Toggle Tabs -> Fabric Revenue / Mill Cost */}
+            <div className="db-stat-tabs-row">
+              <button
+                className={`db-stat-tab-btn ${statTab === 'income' ? 'is-active' : ''}`}
+                onClick={() => setStatTab('income')}
+              >
+                By Fabric (₹48.6L)
+              </button>
+              <button
+                className={`db-stat-tab-btn ${statTab === 'expense' ? 'is-active' : ''}`}
+                onClick={() => setStatTab('expense')}
+              >
+                Cost Centers (₹37.4L)
+              </button>
+            </div>
 
-              {/* In Production: 58 orders (Dark Green) */}
-              <path
-                d="M 15 80 A 70 70 0 0 1 155 80"
-                fill="none"
-                stroke="#134e35"
-                strokeWidth="15"
-                strokeLinecap="round"
-                strokeDasharray="220"
-                strokeDashoffset="90"
-              />
+            {/* Circular Donut Ring */}
+            <div className="db-donut-center-wrap">
+              <svg width="140" height="140" viewBox="0 0 140 140" className="db-donut-svg">
+                {/* Background Ring */}
+                <circle
+                  cx="70"
+                  cy="70"
+                  r="54"
+                  fill="none"
+                  stroke="#e8efe9"
+                  strokeWidth="14"
+                />
+                {/* Lime segment (35%) */}
+                <circle
+                  cx="70"
+                  cy="70"
+                  r="54"
+                  fill="none"
+                  stroke="#9D9D9D"
+                  strokeWidth="14"
+                  strokeDasharray="339.29"
+                  strokeDashoffset="220.5"
+                  strokeLinecap="round"
+                />
+                {/* Dark Pine segment (65%) */}
+                <circle
+                  cx="70"
+                  cy="70"
+                  r="54"
+                  fill="none"
+                  stroke="#79B4B7"
+                  strokeWidth="14"
+                  strokeDasharray="339.29"
+                  strokeDashoffset="118.75"
+                  strokeLinecap="round"
+                />
+              </svg>
 
-              {/* Awaiting Approval + New: 30 orders */}
-              <path
-                d="M 15 80 A 70 70 0 0 1 155 80"
-                fill="none"
-                stroke="#52b788"
-                strokeWidth="15"
-                strokeLinecap="round"
-                strokeDasharray="220"
-                strokeDashoffset="140"
-              />
+              <div className="db-donut-center-text">
+                <span className="db-donut-lbl">
+                  {statTab === 'income' ? 'Total Volume' : 'Total Cost'}
+                </span>
+                <span className="db-donut-val">
+                  {statTab === 'income' ? '₹48.60L' : '₹37.40L'}
+                </span>
+              </div>
+            </div>
 
-              {/* At Risk: 6 orders (Subtle Red warning segment) */}
-              <path
-                d="M 15 80 A 70 70 0 0 1 155 80"
-                fill="none"
-                stroke="#ef4444"
-                strokeWidth="15"
-                strokeLinecap="round"
-                strokeDasharray="220"
-                strokeDashoffset="195"
-              />
-            </svg>
+            {/* Breakdown List */}
+            <div className="db-breakdown-list">
+              {statTab === 'income' ? (
+                <>
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-60" style={{ background: '#79B4B7', color: '#18191B' }}>45%</span>
+                      <span className="db-breakdown-name">Cotton Shirts & Apparel</span>
+                    </div>
+                    <span className="db-breakdown-val">₹21,87,000</span>
+                  </div>
 
-            {/* Central 124 Orders Metric */}
-            <div style={{
-              position: 'absolute',
-              bottom: 2,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center'
-            }}>
-              <span style={{ fontSize: 26, fontWeight: 800, color: '#111827', lineHeight: 1, letterSpacing: '-0.5px' }}>
-                124
-              </span>
-              <span style={{ fontSize: 9.5, color: '#64748b', fontWeight: 600, marginTop: 2 }}>
-                Total Orders
-              </span>
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-15" style={{ background: '#9D9D9D', color: '#FEFBF3' }}>25%</span>
+                      <span className="db-breakdown-name">Bedsheet Sets & Linens</span>
+                    </div>
+                    <span className="db-breakdown-val">₹12,15,000</span>
+                  </div>
+
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-12">15%</span>
+                      <span className="db-breakdown-name">Curtains & Jacquard Drapes</span>
+                    </div>
+                    <span className="db-breakdown-val">₹7,29,000</span>
+                  </div>
+
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-8">10%</span>
+                      <span className="db-breakdown-name">Yarn & Greige Inventory</span>
+                    </div>
+                    <span className="db-breakdown-val">₹4,86,000</span>
+                  </div>
+
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-5">5%</span>
+                      <span className="db-breakdown-name">Trims & Dye Chemicals</span>
+                    </div>
+                    <span className="db-breakdown-val">₹2,43,000</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-60" style={{ background: '#79B4B7', color: '#18191B' }}>55%</span>
+                      <span className="db-breakdown-name">Raw Yarn & Combed Fibers</span>
+                    </div>
+                    <span className="db-breakdown-val">₹20,57,000</span>
+                  </div>
+
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-15" style={{ background: '#9D9D9D', color: '#FEFBF3' }}>20%</span>
+                      <span className="db-breakdown-name">Dyeing & Reactive Finishes</span>
+                    </div>
+                    <span className="db-breakdown-val">₹7,48,000</span>
+                  </div>
+
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-12">12%</span>
+                      <span className="db-breakdown-name">Loom Power & Weaving Sheds</span>
+                    </div>
+                    <span className="db-breakdown-val">₹4,48,800</span>
+                  </div>
+
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-8">8%</span>
+                      <span className="db-breakdown-name">Weavers & Supervising Pay</span>
+                    </div>
+                    <span className="db-breakdown-val">₹2,99,200</span>
+                  </div>
+
+                  <div className="db-breakdown-row">
+                    <div className="db-breakdown-left">
+                      <span className="db-percent-badge db-percent-5">5%</span>
+                      <span className="db-breakdown-name">Logistics & Dispatches</span>
+                    </div>
+                    <span className="db-breakdown-val">₹1,87,000</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Legend Row representing order counts */}
-          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '3px 10px', fontSize: 9, fontWeight: 600, color: '#475569' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#134e35' }} />
-              In Prod: <strong>58</strong>
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#52b788' }} />
-              Approval: <strong>14</strong>
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#d0ebd8' }} />
-              Completed: <strong>30</strong>
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444' }} />
-              <span style={{ color: '#dc2626' }}>At Risk: <strong>06</strong></span>
-            </span>
-          </div>
-        </div>
-
-        {/* =================================================================
-            PANEL C: TODAY'S FACTORY PERFORMANCE
-            Live Floor Monitor replacing timer (2,350m of 2,700m target - 87%)
-            ================================================================= */}
-        <div
-          onClick={() => onNavigateTab('production')}
-          title="Click to open Live Floor Production Tracking"
-          style={{
-            background: 'linear-gradient(135deg, #0e3d28 0%, #08291a 100%)',
-            borderRadius: 20,
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            padding: '14px 18px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            color: '#ffffff',
-            position: 'relative',
-            overflow: 'hidden',
-            boxShadow: '0 4px 16px rgba(14, 61, 40, 0.3)',
-            cursor: 'pointer',
-            minHeight: 0
-          }}
-        >
-          {/* SVG Organic Wavy Topography Contour Background Pattern */}
-          <svg
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-              opacity: 0.32
-            }}
-            viewBox="0 0 240 180"
-            preserveAspectRatio="none"
-          >
-            <path d="M-20,160 Q60,80 140,130 T260,70" fill="none" stroke="#22c55e" strokeWidth="1.2" />
-            <path d="M-20,140 Q60,60 140,110 T260,50" fill="none" stroke="#22c55e" strokeWidth="1.2" />
-            <path d="M-20,120 Q60,40 140,90 T260,30" fill="none" stroke="#22c55e" strokeWidth="1.2" />
-            <path d="M-20,100 Q60,20 140,70 T260,10" fill="none" stroke="#22c55e" strokeWidth="1.2" />
-            <path d="M-20,80 Q60,0 140,50 T260,-10" fill="none" stroke="#22c55e" strokeWidth="1.2" />
-            <path d="M-20,60 Q60,-20 140,30 T260,-30" fill="none" stroke="#22c55e" strokeWidth="1.2" />
-          </svg>
-
-          {/* Header */}
-          <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#e2f0e8' }}>
-              Today's Factory Performance
-            </span>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 8.5,
-              fontWeight: 800,
-              color: '#86efac',
-              background: 'rgba(134, 239, 172, 0.15)',
-              padding: '2px 7px',
-              borderRadius: 9999
-            }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#86efac' }} />
-              LIVE FLOOR
-            </span>
-          </div>
-
-          {/* Main Production Completed Readout */}
-          <div style={{
-            position: 'relative',
-            zIndex: 2,
-            margin: '2px 0'
-          }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.5px', lineHeight: 1 }}>
-              2,350 <span style={{ fontSize: 16, fontWeight: 600, color: '#86efac' }}>metres</span>
+          {/* Card 2: Recent Mill Activity & Agent Telemetry Feed */}
+          <div className="db-card">
+            <div className="db-card-header">
+              <h2 className="db-card-title">Mill Telemetry & Activity</h2>
+              <button className="db-card-action-btn" onClick={() => onNavigateTab('audit')}>
+                <Activity size={15} />
+              </button>
             </div>
-            <div style={{ fontSize: 10, color: '#cde7d8', marginTop: 3 }}>
-              Today's Target: <strong>2,700 m</strong> &bull; <span style={{ color: '#86efac', fontWeight: 700 }}>87% Completed</span>
-            </div>
-          </div>
 
-          {/* Production Progress Bar against Target */}
-          <div style={{ position: 'relative', zIndex: 2 }}>
-            <div style={{ width: '100%', height: 6, background: 'rgba(255, 255, 255, 0.18)', borderRadius: 9999, overflow: 'hidden' }}>
-              <div style={{ width: '87%', height: '100%', background: '#22c55e', borderRadius: 9999 }} />
+            {/* Today Section */}
+            <div className="db-activity-group">
+              <span className="db-activity-section-title">Today</span>
+              {activities
+                .filter((a) => a.section === 'Today')
+                .map((item) => (
+                  <div key={item.id} className="db-activity-item">
+                    <div
+                      className="db-activity-avatar"
+                      style={{
+                        background: item.badgeColor || '#79B4B7',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 10,
+                        fontWeight: 800
+                      }}
+                    >
+                      {item.initials}
+                    </div>
+                    <div className="db-activity-content">
+                      <div className="db-activity-text">
+                        <span className="db-activity-user">{item.user}</span> {item.action}
+                      </div>
+                      <span className="db-activity-time">{item.time}</span>
+                    </div>
+                  </div>
+                ))}
             </div>
-          </div>
 
-          {/* Remaining Production & Pace Metrics */}
-          <div style={{
-            position: 'relative',
-            zIndex: 2,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: 9.5,
-            color: '#cde7d8'
-          }}>
-            <span>Remaining: <strong style={{ color: '#ffffff' }}>350 metres</strong></span>
-            <span style={{
-              background: 'rgba(255, 255, 255, 0.12)',
-              padding: '2px 8px',
-              borderRadius: 6,
-              color: '#86efac',
-              fontWeight: 700
-            }}>
-              142 m/hr pace
-            </span>
+            {/* Yesterday Section */}
+            <div className="db-activity-group" style={{ marginTop: 12 }}>
+              <span className="db-activity-section-title">Yesterday</span>
+              {activities
+                .filter((a) => a.section === 'Yesterday')
+                .map((item) => (
+                  <div key={item.id} className="db-activity-item">
+                    <div
+                      className="db-activity-avatar"
+                      style={{
+                        background: item.badgeColor || '#79B4B7',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 10,
+                        fontWeight: 800
+                      }}
+                    >
+                      {item.initials}
+                    </div>
+                    <div className="db-activity-content">
+                      <div className="db-activity-text">
+                        <span className="db-activity-user">{item.user}</span> {item.action}
+                      </div>
+                      <span className="db-activity-time">{item.time}</span>
+                    </div>
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* =====================================================================
+          NOTIFICATIONS SLIDE-OVER DRAWER
+          ===================================================================== */}
+      {showNotificationDrawer && (
+        <div className="db-drawer-backdrop" onClick={() => setShowNotificationDrawer(false)}>
+          <div className="db-drawer-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="db-drawer-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Bell size={18} color="#18191B" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#132a1e' }}>
+                  Mill Notifications & Machine Alerts
+                </h3>
+              </div>
+              <button
+                className="db-icon-btn"
+                style={{ width: 32, height: 32 }}
+                onClick={() => setShowNotificationDrawer(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="db-drawer-body">
+              {notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  className="db-notif-item"
+                  onClick={() => {
+                    setShowNotificationDrawer(false);
+                    onNavigateTab(notif.tab);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="db-notif-title">
+                    <span>{notif.title}</span>
+                    <span style={{ fontSize: 10, color: '#e53e3e', fontWeight: 600 }}>Action</span>
+                  </div>
+                  <div className="db-notif-msg">{notif.message}</div>
+                  <div className="db-notif-footer">
+                    <span>{notif.timestamp}</span>
+                    <span
+                      style={{
+                        color: '#18191B',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2
+                      }}
+                    >
+                      Open in {notif.tab} <ExternalLink size={11} />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Batch Modal */}
+      {showAddPlanModal && (
+        <div className="db-modal-backdrop" onClick={() => setShowAddPlanModal(false)}>
+          <div className="db-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="db-modal-header">
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Queue New Production Batch</h3>
+              <button
+                className="db-icon-btn"
+                style={{ width: 28, height: 28 }}
+                onClick={() => setShowAddPlanModal(false)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <form onSubmit={handleAddBatchSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Client / Order Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Zara Textiles - Linen Batch"
+                  value={newPlanClient}
+                  onChange={(e) => setNewPlanClient(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #dcdcdc' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Target Volume (Meters)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 5000"
+                  value={newPlanMeters}
+                  onChange={(e) => setNewPlanMeters(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #dcdcdc' }}
+                />
+              </div>
+              <button
+                type="submit"
+                style={{
+                  background: '#79B4B7', color: '#18191B',
+                  fontWeight: 700,
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 16px',
+                  cursor: 'pointer'
+                }}
+              >
+                Queue Batch
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

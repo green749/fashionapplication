@@ -26,7 +26,7 @@ export const PriceCentreModule: React.FC<PriceCentreModuleProps> = ({
   const revisedOrders = orders.filter((o) => o.priceRevision !== undefined);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4, background: '#ffffff' }}>
       {/* 1. Header */}
       <div className="module-header-flat">
         <div>
@@ -148,8 +148,8 @@ export const PriceCentreModule: React.FC<PriceCentreModuleProps> = ({
                     </div>
 
                     <span style={{
-                      background: rev.adminApproved ? '#dff1ea' : '#fef3c7',
-                      color: rev.adminApproved ? '#1e473d' : '#b45309',
+                      background: rev.adminApproved ? '#F8F0DF' : '#fef3c7',
+                      color: rev.adminApproved ? '#18191B' : '#b45309',
                       padding: '3px 10px',
                       borderRadius: 9999,
                       fontSize: 10,

@@ -9,12 +9,18 @@ import {
   Layers,
   History,
   TrendingUp,
-  Mail,
-  Phone,
   GitCompare,
   MessageSquare,
-  LayoutGrid,
-  List
+  ArrowUp,
+  ArrowDown,
+  Edit2,
+  Trash2,
+  ShoppingBag,
+  Clock,
+  Plus,
+  Upload,
+  SlidersHorizontal,
+  Minus
 } from 'lucide-react';
 import type { Order } from '../../types';
 
@@ -200,6 +206,59 @@ const calculateQuotationFinancials = (record: QuotationRecord) => {
   };
 };
 
+// Circular gauge donut ring helper matching reference image 2
+const CircularGauge: React.FC<{ percent: number; color: string; size?: number }> = ({ percent, color, size = 38 }) => {
+  const strokeWidth = 3.5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (percent / 100) * circumference;
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#f2f4f7"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          fill="transparent"
+          style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+        />
+      </svg>
+      <div style={{
+        position: 'absolute',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: '#344054' }}>{percent}%</span>
+      </div>
+    </div>
+  );
+};
+
+const getClientBrand = (clientName: string) => {
+  if (clientName.includes('Fashion')) return { initials: 'FH', color: '#1D2628', bg: '#F8F0DF' };
+  if (clientName.includes('Urban')) return { initials: 'UT', color: '#18191B', bg: '#EDEFF2' };
+  if (clientName.includes('Style World')) return { initials: 'SW', color: '#1B1918', bg: '#FAF4EA' };
+  if (clientName.includes('Home Living')) return { initials: 'HL', color: '#8A6529', bg: '#FAF4EA' };
+  if (clientName.includes('StyleMart')) return { initials: 'SM', color: '#1D2628', bg: '#F8F0DF' };
+  if (clientName.includes('HomeNest')) return { initials: 'HN', color: '#18191B', bg: '#EDEFF2' };
+  return { initials: 'LP', color: '#1D2628', bg: '#F8F0DF' };
+};
+
 export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> = ({
   orders: _orders,
   onSelectOrder: _onSelectOrder,
@@ -207,19 +266,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
   onRejectQuotation
 }) => {
   // Active selected client state (Defaults to 'CL-001' Fashion House)
-  const [selectedClientId, setSelectedClientId] = useState<string>('CL-001');
-
-  // Filter for orders inside the selected client ('all' or specific orderId like 'LP-901')
-  const [selectedOrderFilter, setSelectedOrderFilter] = useState<string>('all');
-
-  // View style for displaying quotations: 'table' (high density) | 'cards' (rich visual)
-  const [quotationViewStyle, setQuotationViewStyle] = useState<'table' | 'cards'>('table');
-
-  // Quick search query (matches Quote ID, Order ID, Product specs)
-  const [searchQuery, setSearchQuery] = useState<string>('');
-
-  // Status filter for quotations
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedClientId] = useState<string>('CL-001');
 
   // Active quotation in review modal
   const [activeQuotationId, setActiveQuotationId] = useState<string | null>(null);
@@ -243,6 +290,11 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3800);
   };
+
+  // Quotation state matching reference table structure
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>(['QT-1001', 'QT-1007', 'QT-1002', 'QT-1003']);
+  const [quotationTab, setQuotationTab] = useState<'all' | 'in_review' | 'approved'>('all');
+  const [quotationSearchQuery, setQuotationSearchQuery] = useState<string>('');
 
   // =========================================================================
   // CLIENT REGISTRY
@@ -1160,27 +1212,25 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
     return quotations.filter((q) => q.clientId === selectedClient.id);
   }, [quotations, selectedClient.id]);
 
-  // Unique Order IDs for the selected client
-  const clientOrderIds = useMemo(() => {
-    const set = new Set<string>();
-    clientQuotations.forEach((q) => set.add(q.orderId));
-    return Array.from(set);
-  }, [clientQuotations]);
+  // Filtered Quotations for table display (based on tab and search query)
+  const filteredQuotations = useMemo(() => {
+    return quotations.filter((q) => {
+      if (quotationTab === 'in_review' && q.status !== 'pending_admin_approval') return false;
+      if (quotationTab === 'approved' && q.status !== 'approved' && q.status !== 'client_accepted' && q.status !== 'finalized') return false;
 
-  // Filtered Quotations for display (based on order tab, status, and search)
-  const displayedQuotations = useMemo(() => {
-    return clientQuotations.filter((q) => {
-      const matchesOrder = selectedOrderFilter === 'all' || q.orderId === selectedOrderFilter;
-      const matchesStatus = statusFilter === 'all' || q.status === statusFilter;
-      const matchesSearch =
-        searchQuery === '' ||
-        q.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.specs.fabricType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.typeLabel.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesOrder && matchesStatus && matchesSearch;
+      if (quotationSearchQuery.trim()) {
+        const query = quotationSearchQuery.toLowerCase();
+        const matchesId = q.id.toLowerCase().includes(query);
+        const matchesClient = q.clientName.toLowerCase().includes(query);
+        const matchesOrder = q.orderId.toLowerCase().includes(query);
+        const matchesFabric = q.specs.fabricType.toLowerCase().includes(query);
+        const matchesWeave = q.specs.weave.toLowerCase().includes(query);
+        if (!matchesId && !matchesClient && !matchesOrder && !matchesFabric && !matchesWeave) return false;
+      }
+      return true;
     });
-  }, [clientQuotations, selectedOrderFilter, statusFilter, searchQuery]);
+  }, [quotations, quotationTab, quotationSearchQuery]);
+
 
   // Active quotation in modal review
   const activeQuotation = quotations.find((q) => q.id === activeQuotationId) || null;
@@ -1196,7 +1246,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
       case 'revision_required':
         return { label: 'Revision Required', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1', dot: '#64748b' };
       case 'approved':
-        return { label: 'Approved (Internal)', color: '#164e32', bg: '#eaf6ef', border: '#cde7d8', dot: '#16a34a' };
+        return { label: 'Approved (Internal)', color: '#166534', bg: '#dcfce7', border: '#bbf7d0', dot: '#16a34a' };
       case 'awaiting_client_response':
         return { label: 'Awaiting Client Response', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', dot: '#0ea5e9' };
       case 'client_revision_requested':
@@ -1206,7 +1256,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
       case 'client_declined':
         return { label: 'Client Declined', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444' };
       case 'finalized':
-        return { label: 'Finalized Agreement', color: '#164e32', bg: '#dcfce7', border: '#86efac', dot: '#15803d' };
+        return { label: 'Finalized Agreement', color: '#1D2628', bg: '#F8F0DF', border: '#79B4B7', dot: '#79B4B7' };
       case 'rejected':
         return { label: 'Rejected by Admin', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', dot: '#dc2626' };
     }
@@ -1215,7 +1265,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
   const getTypeBadge = (type: QuotationType) => {
     switch (type) {
       case 'new':
-        return { label: 'New Proposal', bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' };
+        return { label: 'New Proposal', bg: '#F8F0DF', color: '#1D2628', border: '#79B4B7' };
       case 'revised':
         return { label: 'Revised Quotation', bg: '#fef3c7', color: '#b45309', border: '#fde68a' };
       case 'alternative':
@@ -1379,799 +1429,549 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.4px' }}>
             Quotations &amp; Approvals
           </h1>
-          <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0' }}>
-            Click any client below to inspect all associated commercial proposals, order revisions, and alternatives.
-          </p>
+          
         </div>
 
         <div style={{
           fontSize: 11,
           fontWeight: 700,
-          color: '#164e32',
-          background: '#eaf6ef',
-          border: '1px solid #cde7d8',
+          color: '#18191B',
+          background: '#FDF2F3',
+          border: '1px solid #F6C8CC',
           padding: '5px 12px',
           borderRadius: 9999,
           display: 'flex',
           alignItems: 'center',
           gap: 6
         }}>
-          <Sparkles size={13} color="#16a34a" />
+          <Sparkles size={13} color="#79B4B7" />
           <span>Quotation Agent Active (v2.4)</span>
         </div>
       </div>
 
       {/* ===================================================================
-          2. CLIENTS BAR: DISPLAY THE CLIENTS (CLICK ANY CLIENT TO VIEW QUOTES)
+          1. FOUR UNTITLED UI KPI METRIC CARDS WITH DONUT GAUGES (Reference Image 2)
           =================================================================== */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: '#111827', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-            Select Client Account ({clients.length})
-          </span>
-          <span style={{ fontSize: 10.5, color: '#64748b' }}>
-            Clicking a client immediately loads all related commercial proposals below
-          </span>
+      <div className="reference-kpi-grid">
+        {/* Card 1: Total Quotations / Blue */}
+        <div className="reference-kpi-card">
+          <div className="reference-kpi-left">
+            <div className="reference-kpi-icon-circle" style={{ background: '#e0f2fe', color: '#0284c7' }}>
+              <ShoppingBag size={18} />
+            </div>
+            <div className="reference-kpi-content">
+              <div className="reference-kpi-top-row">
+                <span className="reference-kpi-number">{quotations.length}</span>
+                <span className="reference-kpi-change">
+                  <ArrowUp size={11} strokeWidth={2.5} /> 18%
+                </span>
+              </div>
+              <span className="reference-kpi-label">Total Quotations</span>
+            </div>
+          </div>
+          <div className="reference-kpi-right">
+            <div className="reference-kpi-gauge-label">
+              <div>Yield</div>
+            </div>
+            <CircularGauge percent={88} color="#0284c7" size={38} />
+          </div>
         </div>
 
-        {/* Responsive Horizontal Grid of Client Cards */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))',
-          gap: 8
-        }}>
-          {clients.map((client) => {
-            const isSelected = client.id === selectedClientId;
-            const quotes = quotations.filter((q) => q.clientId === client.id);
-            const pendingCount = quotes.filter((q) => q.status === 'pending_admin_approval').length;
-            const hasFinalized = quotes.some((q) => q.status === 'finalized');
-            const hasAccepted = quotes.some((q) => q.status === 'client_accepted');
-
-            return (
-              <div
-                key={client.id}
-                onClick={() => {
-                  setSelectedClientId(client.id);
-                  setSelectedOrderFilter('all');
-                }}
-                style={{
-                  background: isSelected ? '#164e32' : '#ffffff',
-                  color: isSelected ? '#ffffff' : '#111827',
-                  border: isSelected ? '2px solid #164e32' : '1px solid #edf2ef',
-                  borderRadius: 14,
-                  padding: '10px 12px',
-                  cursor: 'pointer',
-                  boxShadow: isSelected ? '0 4px 14px rgba(22, 78, 50, 0.22)' : '0 1px 3px rgba(0,0,0,0.02)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                  position: 'relative'
-                }}
-              >
-                {/* Header: Initial Avatar & Name */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: isSelected ? 'rgba(255,255,255,0.2)' : '#eaf6ef',
-                    color: isSelected ? '#ffffff' : '#164e32',
-                    fontSize: 10.5,
-                    fontWeight: 800,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    {client.initials}
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{
-                      fontSize: 12,
-                      fontWeight: 800,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }}>
-                      {client.name}
-                    </div>
-                    <div style={{
-                      fontSize: 9.5,
-                      color: isSelected ? '#cde7d8' : '#64748b',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }}>
-                      {client.city}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer: Count of Quotes & Status Badge */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  paddingTop: 6,
-                  borderTop: isSelected ? '1px solid rgba(255,255,255,0.15)' : '1px solid #f8faf9',
-                  fontSize: 10
-                }}>
-                  <span style={{ color: isSelected ? '#e2e8f0' : '#475569', fontWeight: 600 }}>
-                    {quotes.length} {quotes.length > 1 ? 'Quotes' : 'Quote'}
-                  </span>
-
-                  {pendingCount > 0 ? (
-                    <span style={{
-                      fontSize: 9,
-                      fontWeight: 800,
-                      background: isSelected ? '#f59e0b' : '#fef3c7',
-                      color: isSelected ? '#ffffff' : '#b45309',
-                      padding: '1px 6px',
-                      borderRadius: 9999
-                    }}>
-                      {pendingCount} Pending
-                    </span>
-                  ) : hasFinalized ? (
-                    <span style={{
-                      fontSize: 9,
-                      fontWeight: 800,
-                      background: isSelected ? '#10b981' : '#dcfce7',
-                      color: isSelected ? '#ffffff' : '#15803d',
-                      padding: '1px 6px',
-                      borderRadius: 9999
-                    }}>
-                      Finalized
-                    </span>
-                  ) : hasAccepted ? (
-                    <span style={{
-                      fontSize: 9,
-                      fontWeight: 800,
-                      background: isSelected ? '#10b981' : '#ecfdf5',
-                      color: isSelected ? '#ffffff' : '#047857',
-                      padding: '1px 6px',
-                      borderRadius: 9999
-                    }}>
-                      Accepted
-                    </span>
-                  ) : (
-                    <span style={{
-                      fontSize: 9,
-                      fontWeight: 700,
-                      background: isSelected ? 'rgba(255,255,255,0.15)' : '#f1f5f9',
-                      color: isSelected ? '#ffffff' : '#64748b',
-                      padding: '1px 6px',
-                      borderRadius: 9999
-                    }}>
-                      Dispatched
-                    </span>
-                  )}
-                </div>
+        {/* Card 2: Pending Approval / Green */}
+        <div className="reference-kpi-card">
+          <div className="reference-kpi-left">
+            <div className="reference-kpi-icon-circle" style={{ background: '#dcfce7', color: '#16a34a' }}>
+              <Clock size={18} />
+            </div>
+            <div className="reference-kpi-content">
+              <div className="reference-kpi-top-row">
+                <span className="reference-kpi-number">{quotations.filter(q => q.status === 'pending_admin_approval').length}</span>
+                <span className="reference-kpi-change">
+                  <ArrowUp size={11} strokeWidth={2.5} /> Action needed
+                </span>
               </div>
-            );
-          })}
+              <span className="reference-kpi-label">Pending Review</span>
+            </div>
+          </div>
+          <div className="reference-kpi-right">
+            <div className="reference-kpi-gauge-label">
+              <div>In Review</div>
+            </div>
+            <CircularGauge percent={42} color="#16a34a" size={38} />
+          </div>
+        </div>
+
+        {/* Card 3: Confirmed / Accepted / Teal */}
+        <div className="reference-kpi-card">
+          <div className="reference-kpi-left">
+            <div className="reference-kpi-icon-circle" style={{ background: '#ccfbf1', color: '#0d9488' }}>
+              <CheckCircle2 size={18} />
+            </div>
+            <div className="reference-kpi-content">
+              <div className="reference-kpi-top-row">
+                <span className="reference-kpi-number">{quotations.filter(q => q.status === 'approved' || q.status === 'client_accepted' || q.status === 'finalized').length}</span>
+                <span className="reference-kpi-change">
+                  <ArrowUp size={11} strokeWidth={2.5} /> 12%
+                </span>
+              </div>
+              <span className="reference-kpi-label">Approved Quotes</span>
+            </div>
+          </div>
+          <div className="reference-kpi-right">
+            <div className="reference-kpi-gauge-label">
+              <div>Acceptance</div>
+            </div>
+            <CircularGauge percent={75} color="#0d9488" size={38} />
+          </div>
+        </div>
+
+        {/* Card 4: Margin Volatility Buffer / Orange */}
+        <div className="reference-kpi-card">
+          <div className="reference-kpi-left">
+            <div className="reference-kpi-icon-circle" style={{ background: '#ffedd5', color: '#f97316' }}>
+              <AlertTriangle size={18} />
+            </div>
+            <div className="reference-kpi-content">
+              <div className="reference-kpi-top-row">
+                <span className="reference-kpi-number">{quotations.filter(q => q.status === 'rejected' || q.marginPercent < 15).length}</span>
+                <span className="reference-kpi-change">
+                  <ArrowUp size={11} strokeWidth={2.5} /> Margin check
+                </span>
+              </div>
+              <span className="reference-kpi-label">Below 15% Margin</span>
+            </div>
+          </div>
+          <div className="reference-kpi-right">
+            <div className="reference-kpi-gauge-label">
+              <div>Compliance</div>
+            </div>
+            <CircularGauge percent={92} color="#f97316" size={38} />
+          </div>
         </div>
       </div>
 
       {/* ===================================================================
-          3. SELECTED CLIENT QUOTATIONS CONTAINER
+          2. TWO-COLUMN WORKSPACE: LEFT TABLE (72%) + RIGHT BUNDLES (28%)
+          (Exact Structure and Visual Composition of Reference Image 2)
           =================================================================== */}
-      <div style={{
-        background: '#ffffff',
-        borderRadius: 18,
-        border: '1.5px solid #edf2ef',
-        padding: '16px 18px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12
-      }}>
-        {/* Selected Client Operational Ribbon */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 10,
-          borderBottom: '1px solid #f1f5f9',
-          paddingBottom: 10
-        }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#164e32', background: '#eaf6ef', padding: '2px 8px', borderRadius: 6 }}>
-                {selectedClient.id}
-              </span>
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: 0 }}>
-                {selectedClient.name} &bull; Quotations ({clientQuotations.length})
-              </h2>
-            </div>
-            <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span>Contact: <strong>{selectedClient.contactPerson}</strong></span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Mail size={11} /> {selectedClient.email}</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Phone size={11} /> {selectedClient.phone}</span>
-            </div>
-          </div>
-
-          {/* View Toggle & Search Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {/* Quick Search inside this client */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#f8faf9',
-              border: '1px solid #edf2ef',
-              borderRadius: 9999,
-              padding: '4px 10px',
-              fontSize: 10.5
-            }}>
-              <Search size={12} color="#94a3b8" />
-              <input
-                type="text"
-                placeholder="Search Quote ID, Order, Fabric..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 10.5, width: 140 }}
-              />
+      <div className="reference-layout-grid">
+        {/* LEFT COLUMN: THE REAL QUOTATION DETAILS TABLE */}
+        <div className="ref-table-card">
+          {/* Header Block: Title + Count Badge + Subtitle + Import & +Add Buttons */}
+          <div className="ref-table-header">
+            <div className="ref-table-title-group">
+              <div className="ref-table-title-row">
+                <h2 className="ref-table-title">Quotation Proposals</h2>
+                <span className="ref-table-count-badge">{quotations.length} proposals</span>
+              </div>
+              
             </div>
 
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{
-                background: '#f8faf9',
-                border: '1px solid #edf2ef',
-                borderRadius: 9999,
-                padding: '4px 10px',
-                fontSize: 10.5,
-                color: '#334155',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending_approval">Pending Approval</option>
-              <option value="approved">Approved</option>
-              <option value="awaiting_client">Sent to Client</option>
-              <option value="client_accepted">Accepted</option>
-              <option value="finalized">Finalized</option>
-              <option value="revision_requested">Revision Requested</option>
-              <option value="rejected">Rejected</option>
-            </select>
-
-            {/* Table / Cards View Toggle */}
-            <div style={{
-              display: 'flex',
-              background: '#f1f5f9',
-              borderRadius: 8,
-              padding: 2
-            }}>
+            <div className="ref-table-actions">
               <button
-                onClick={() => setQuotationViewStyle('table')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  background: quotationViewStyle === 'table' ? '#ffffff' : 'transparent',
-                  color: quotationViewStyle === 'table' ? '#164e32' : '#64748b',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '4px 10px',
-                  fontSize: 10.5,
-                  fontWeight: quotationViewStyle === 'table' ? 700 : 500,
-                  cursor: 'pointer',
-                  boxShadow: quotationViewStyle === 'table' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none'
-                }}
+                type="button"
+                className="ref-btn-import"
+                onClick={() => showToast('Exported audited commercial quotations CSV.')}
               >
-                <List size={12} />
-                Table View
+                <Upload size={14} />
+                <span>Export CSV</span>
               </button>
               <button
-                onClick={() => setQuotationViewStyle('cards')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  background: quotationViewStyle === 'cards' ? '#ffffff' : 'transparent',
-                  color: quotationViewStyle === 'cards' ? '#164e32' : '#64748b',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '4px 10px',
-                  fontSize: 10.5,
-                  fontWeight: quotationViewStyle === 'cards' ? 700 : 500,
-                  cursor: 'pointer',
-                  boxShadow: quotationViewStyle === 'cards' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none'
-                }}
+                type="button"
+                className="ref-btn-add"
+                onClick={() => showToast('New quotation proposal generator initialized.')}
               >
-                <LayoutGrid size={12} />
-                Cards View
+                <Plus size={15} />
+                <span>New quotation</span>
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Order Group Filter Pills (e.g. All Quotations, Order LP-901, Order LP-905) */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setSelectedOrderFilter('all')}
-              style={{
-                background: selectedOrderFilter === 'all' ? '#164e32' : '#f8faf9',
-                color: selectedOrderFilter === 'all' ? '#ffffff' : '#475569',
-                border: selectedOrderFilter === 'all' ? '1px solid #164e32' : '1px solid #edf2ef',
-                borderRadius: 9999,
-                padding: '4px 12px',
-                fontSize: 10.5,
-                fontWeight: selectedOrderFilter === 'all' ? 700 : 500,
-                cursor: 'pointer'
-              }}
-            >
-              All Client Quotations ({clientQuotations.length})
-            </button>
+          {/* Filter Toolbar: Segmented Tabs (All / In Review / Approved) + Search + Filters */}
+          <div className="ref-table-toolbar">
+            <div className="ref-segmented-tabs">
+              <button
+                type="button"
+                className={`ref-tab-btn ${quotationTab === 'all' ? 'active' : ''}`}
+                onClick={() => setQuotationTab('all')}
+              >
+                All Proposals ({quotations.length})
+              </button>
+              <button
+                type="button"
+                className={`ref-tab-btn ${quotationTab === 'in_review' ? 'active' : ''}`}
+                onClick={() => setQuotationTab('in_review')}
+              >
+                In Review ({quotations.filter(q => q.status === 'pending_admin_approval').length})
+              </button>
+              <button
+                type="button"
+                className={`ref-tab-btn ${quotationTab === 'approved' ? 'active' : ''}`}
+                onClick={() => setQuotationTab('approved')}
+              >
+                Approved ({quotations.filter(q => q.status === 'approved' || q.status === 'client_accepted' || q.status === 'finalized').length})
+              </button>
+            </div>
 
-            {clientOrderIds.map((orderId) => {
-              const orderQuotes = clientQuotations.filter((q) => q.orderId === orderId);
-              const isSelected = selectedOrderFilter === orderId;
-              return (
-                <button
-                  key={orderId}
-                  onClick={() => setSelectedOrderFilter(orderId)}
-                  style={{
-                    background: isSelected ? '#164e32' : '#ffffff',
-                    color: isSelected ? '#ffffff' : '#475569',
-                    border: isSelected ? '1px solid #164e32' : '1px solid #edf2ef',
-                    borderRadius: 9999,
-                    padding: '4px 12px',
-                    fontSize: 10.5,
-                    fontWeight: isSelected ? 700 : 500,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Order {orderId} ({orderQuotes.length})
-                </button>
-              );
-            })}
+            <div className="ref-search-filter-group">
+              <div className="ref-search-box" style={{ width: 280 }}>
+                <Search size={15} color="#667085" />
+                <input
+                  type="text"
+                  placeholder="Search quote ID, client, fabric specs..."
+                  value={quotationSearchQuery}
+                  onChange={(e) => setQuotationSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <button
+                type="button"
+                className="ref-btn-filters"
+                onClick={() => showToast('Quotation filter drawer opened.')}
+              >
+                <SlidersHorizontal size={14} color="#344054" />
+                <span>Filters</span>
+              </button>
+            </div>
           </div>
 
-          {/* Compare Quotations CTA (if selected client has an order with multiple quotations) */}
-          {clientOrderIds.some((oid) => clientQuotations.filter((q) => q.orderId === oid).length >= 2) && (
-            <button
-              onClick={() => {
-                const multiOrder = clientOrderIds.find((oid) => clientQuotations.filter((q) => q.orderId === oid).length >= 2);
-                if (multiOrder) setComparingOrderId(multiOrder);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                background: '#ffffff',
-                color: '#164e32',
-                border: '1.5px solid #cde7d8',
-                borderRadius: 9999,
-                padding: '4px 12px',
-                fontSize: 10.5,
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              <GitCompare size={12} />
-              Compare Quotations
-            </button>
-          )}
-        </div>
-
-        {/* ===============================================================
-            ALL QUOTATIONS RELATED TO THE SELECTED CLIENT (TABLE VIEW)
-            =============================================================== */}
-        {quotationViewStyle === 'table' && (
-          <div style={{ border: '1px solid #edf2ef', borderRadius: 12, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 900 }}>
+          {/* Authentic Data Table with Real LoomPilot Quotations */}
+          <div className="untitled-table-wrapper">
+            <table className="untitled-table">
               <thead>
-                <tr style={{ background: '#f8faf9', color: '#64748b', borderBottom: '1px solid #edf2ef', textAlign: 'left' }}>
-                  <th style={{ padding: '9px 10px', width: 95, fontWeight: 700 }}>Quote ID</th>
-                  <th style={{ padding: '9px 10px', width: 85, fontWeight: 700 }}>Order ID</th>
-                  <th style={{ padding: '9px 10px', width: 130, fontWeight: 700 }}>Proposal Type</th>
-                  <th style={{ padding: '9px 10px', fontWeight: 700 }}>Fabric &amp; Specifications</th>
-                  <th style={{ padding: '9px 10px', textAlign: 'right', width: 90, fontWeight: 700 }}>Quantity</th>
-                  <th style={{ padding: '9px 10px', textAlign: 'right', width: 95, fontWeight: 700 }}>Cost</th>
-                  <th style={{ padding: '9px 10px', textAlign: 'right', width: 105, fontWeight: 700 }}>Quoted Price</th>
-                  <th style={{ padding: '9px 10px', textAlign: 'center', width: 90, fontWeight: 700 }}>Margin</th>
-                  <th style={{ padding: '9px 10px', width: 135, fontWeight: 700 }}>Status</th>
-                  <th style={{ padding: '9px 10px', textAlign: 'right', width: 130, fontWeight: 700 }}>Action</th>
+                <tr>
+                  <th className="col-cb">
+                    <div
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 4,
+                        border: '1.5px solid #79B4B7', background: '#79B4B7',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        margin: '0 auto'
+                      }}
+                      onClick={() => {
+                        if (selectedQuoteIds.length === filteredQuotations.length) {
+                          setSelectedQuoteIds([]);
+                        } else {
+                          setSelectedQuoteIds(filteredQuotations.map((q) => q.id));
+                        }
+                      }}
+                      title="Select all"
+                    >
+                      <Minus size={11} strokeWidth={3} />
+                    </div>
+                  </th>
+                  <th>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      Quotation &amp; Client <ArrowDown size={12} color="#667085" />
+                    </div>
+                  </th>
+                  <th>Gross Profit Margin</th>
+                  <th>Delivery Deadline</th>
+                  <th>Fabric Specs &amp; Status</th>
+                  <th style={{ textAlign: 'right' }}>Quoted Price</th>
+                  <th style={{ width: 80, textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {displayedQuotations.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
-                      No quotations found matching the selected filter.
-                    </td>
-                  </tr>
-                ) : (
-                  displayedQuotations.map((quote) => {
-                    const fin = calculateQuotationFinancials(quote);
-                    const statusBadge = getStatusBadge(quote.status);
-                    const typeBadge = getTypeBadge(quote.quotationType);
+                {filteredQuotations.map((quote) => {
+                  const isSelected = selectedQuoteIds.includes(quote.id);
+                  const brand = getClientBrand(quote.clientName);
+                  const fin = calculateQuotationFinancials(quote);
+                  const formattedPrice = `₹${quote.quotedAmount.toLocaleString()}`;
 
-                    return (
-                      <tr
-                        key={quote.id}
-                        onClick={() => {
-                          setActiveQuotationId(quote.id);
-                          setActiveDetailTab('overview');
-                        }}
-                        style={{
-                          borderBottom: '1px solid #f8faf9',
-                          cursor: 'pointer',
-                          transition: 'background 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fdf9')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  let statusDotColor = '#12b76a';
+                  let statusText = 'Approved';
+                  if (quote.status === 'pending_admin_approval') {
+                    statusDotColor = '#f59e0b';
+                    statusText = 'In Review';
+                  } else if (quote.status === 'client_accepted') {
+                    statusDotColor = '#0d9488';
+                    statusText = 'Accepted';
+                  } else if (quote.status === 'finalized') {
+                    statusDotColor = '#79B4B7';
+                    statusText = 'Finalized';
+                  } else if (quote.status === 'rejected') {
+                    statusDotColor = '#ef4444';
+                    statusText = 'Rejected';
+                  }
+
+                  return (
+                    <tr
+                      key={quote.id}
+                      className={isSelected ? 'is-selected' : ''}
+                      onClick={() => {
+                        setActiveQuotationId(quote.id);
+                        setActiveDetailTab('overview');
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td
+                        className="col-cb"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {/* Quote ID & Version */}
-                        <td style={{ padding: '10px 10px', fontWeight: 800, color: '#164e32' }}>
-                          <div>{quote.id}</div>
-                          <span style={{ fontSize: 9, color: '#94a3b8' }}>{quote.version}</span>
-                        </td>
-
-                        {/* Order ID */}
-                        <td style={{ padding: '10px 10px', fontWeight: 700, color: '#111827' }}>
-                          {quote.orderId}
-                        </td>
-
-                        {/* Type Badge */}
-                        <td style={{ padding: '10px 10px' }}>
-                          <span style={{
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                            background: typeBadge.bg,
-                            color: typeBadge.color,
-                            border: `1px solid ${typeBadge.border}`,
-                            padding: '2px 7px',
-                            borderRadius: 6
-                          }}>
-                            {typeBadge.label}
-                          </span>
-                        </td>
-
-                        {/* Fabric & Specs */}
-                        <td style={{ padding: '10px 10px' }}>
-                          <div style={{ fontWeight: 600, color: '#111827' }}>{quote.specs.fabricType}</div>
-                          <div style={{ fontSize: 9.5, color: '#64748b' }}>
-                            {quote.specs.gsm} GSM &bull; {quote.specs.weave} &bull; {quote.specs.yarnCount}
+                        <input
+                          type="checkbox"
+                          className="untitled-checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            if (isSelected) {
+                              setSelectedQuoteIds(selectedQuoteIds.filter((id) => id !== quote.id));
+                            } else {
+                              setSelectedQuoteIds([...selectedQuoteIds, quote.id]);
+                            }
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <div className="untitled-entity-cell">
+                          <div
+                            className="untitled-avatar-badge"
+                            style={{
+                              background: brand.color,
+                              color: '#ffffff',
+                              fontSize: 13,
+                              fontWeight: 800,
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+                            }}
+                          >
+                            {brand.initials}
                           </div>
-                        </td>
-
-                        {/* Quantity */}
-                        <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                          {quote.totalQuantity.toLocaleString()} {quote.quantityUnit}
-                        </td>
-
-                        {/* Cost */}
-                        <td style={{ padding: '10px 10px', textAlign: 'right', color: '#475569', fontVariantNumeric: 'tabular-nums' }}>
-                          ₹{fin.totalCost.toLocaleString()}
-                        </td>
-
-                        {/* Quoted Price */}
-                        <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
-                          ₹{quote.quotedAmount.toLocaleString()}
-                        </td>
-
-                        {/* Margin % */}
-                        <td style={{ padding: '10px 10px', textAlign: 'center' }}>
-                          <span style={{
-                            fontSize: 10,
-                            fontWeight: 800,
-                            color: fin.isPolicyCompliant ? '#16a34a' : '#dc2626',
-                            background: fin.isPolicyCompliant ? '#ecfdf5' : '#fee2e2',
-                            padding: '2px 6px',
-                            borderRadius: 4
-                          }}>
-                            {fin.marginPercent.toFixed(1)}% {fin.isPolicyCompliant ? '✓' : '⚠'}
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td style={{ padding: '10px 10px' }}>
-                          <span style={{
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                            background: statusBadge.bg,
-                            color: statusBadge.color,
-                            border: `1px solid ${statusBadge.border}`,
-                            padding: '2px 7px',
-                            borderRadius: 9999,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4
-                          }}>
-                            <span style={{ width: 4, height: 4, borderRadius: '50%', background: statusBadge.dot }} />
-                            {statusBadge.label}
-                          </span>
-                        </td>
-
-                        {/* Action Buttons */}
-                        <td style={{ padding: '10px 10px', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: 4 }}>
-                            {quote.status === 'pending_admin_approval' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAdminApprove(quote.id);
-                                }}
-                                style={{
-                                  background: '#164e32',
-                                  color: '#ffffff',
-                                  border: 'none',
-                                  borderRadius: 6,
-                                  padding: '3px 8px',
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Approve
-                              </button>
-                            )}
-
-                            {quote.status === 'approved' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSendToClient(quote.id);
-                                }}
-                                style={{
-                                  background: '#0284c7',
-                                  color: '#ffffff',
-                                  border: 'none',
-                                  borderRadius: 6,
-                                  padding: '3px 8px',
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Send
-                              </button>
-                            )}
-
-                            {quote.status === 'client_accepted' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleFinalizeQuotation(quote.id);
-                                }}
-                                style={{
-                                  background: '#15803d',
-                                  color: '#ffffff',
-                                  border: 'none',
-                                  borderRadius: 6,
-                                  padding: '3px 8px',
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Finalize
-                              </button>
-                            )}
-
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveQuotationId(quote.id);
-                                setActiveDetailTab('overview');
-                              }}
+                          <div>
+                            <div className="untitled-entity-title">{quote.clientName}</div>
+                            <div className="untitled-entity-sub">
+                              <strong>#{quote.id}</strong> &bull; Order #{quote.orderId} &bull; {quote.totalQuantity.toLocaleString()} {quote.quantityUnit}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="ref-rating-cell">
+                          <div className="ref-rating-track">
+                            <div
+                              className="ref-rating-fill"
                               style={{
-                                background: '#f1f5f9',
-                                color: '#164e32',
-                                border: '1px solid #d1d5db',
-                                borderRadius: 6,
-                                padding: '3px 8px',
-                                fontSize: 10,
-                                fontWeight: 700,
-                                cursor: 'pointer'
+                                width: `${Math.min(100, Math.max(12, fin.marginPercent * 4))}%`,
+                                background: fin.isPolicyCompliant ? '#79B4B7' : '#f04438'
                               }}
-                            >
-                              Review
-                            </button>
+                            />
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                          <span className="ref-rating-score">{fin.marginPercent.toFixed(1)}%</span>
+                          <span className="ref-rating-badge" style={{ color: fin.isPolicyCompliant ? '#12b76a' : '#d92d20' }}>
+                            <ArrowUp size={11} strokeWidth={2.5} /> {fin.isPolicyCompliant ? 'Compliant' : 'Low Margin'}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ color: '#475467', fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {quote.deadlineDate}
+                      </td>
+                      <td>
+                        <div className="ref-license-cell">
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: statusDotColor }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusDotColor }} />
+                            {statusText}
+                          </span>
+                          <span className="ref-tag-pill">
+                            {quote.specs.fabricType}
+                          </span>
+                          <span className="ref-tag-pill">
+                            {quote.specs.gsm} GSM
+                          </span>
+                          <span className="ref-tag-pill">
+                            {quote.specs.weave}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#101828', fontVariantNumeric: 'tabular-nums' }}>
+                        {formattedPrice}
+                      </td>
+                      <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="untitled-row-actions">
+                          <button
+                            type="button"
+                            className="untitled-action-icon-btn delete"
+                            title="Decline / Reject quotation"
+                            onClick={() => {
+                              setQuotations((prev) =>
+                                prev.map((q) => (q.id === quote.id ? { ...q, status: 'rejected' } : q))
+                              );
+                              showToast(`Quotation #${quote.id} marked as declined.`);
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="untitled-action-icon-btn"
+                            title="Inspect & Review quotation details"
+                            onClick={() => {
+                              setActiveQuotationId(quote.id);
+                              setActiveDetailTab('overview');
+                            }}
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        )}
 
-        {/* ===============================================================
-            ALL QUOTATIONS RELATED TO THE SELECTED CLIENT (CARDS VIEW)
-            =============================================================== */}
-        {quotationViewStyle === 'cards' && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))',
-            gap: 12
-          }}>
-            {displayedQuotations.map((quote) => {
-              const fin = calculateQuotationFinancials(quote);
-              const statusBadge = getStatusBadge(quote.status);
-              const typeBadge = getTypeBadge(quote.quotationType);
-
-              return (
-                <div
-                  key={quote.id}
-                  style={{
-                    background: '#ffffff',
-                    border: quote.status === 'finalized' ? '2px solid #86efac' : '1px solid #edf2ef',
-                    borderRadius: 14,
-                    padding: '14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    gap: 10,
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{
-                        fontSize: 9.5,
-                        fontWeight: 800,
-                        background: typeBadge.bg,
-                        color: typeBadge.color,
-                        border: `1px solid ${typeBadge.border}`,
-                        padding: '2px 7px',
-                        borderRadius: 6
-                      }}>
-                        {typeBadge.label}
-                      </span>
-
-                      <span style={{
-                        fontSize: 9.5,
-                        fontWeight: 700,
-                        background: statusBadge.bg,
-                        color: statusBadge.color,
-                        border: `1px solid ${statusBadge.border}`,
-                        padding: '2px 8px',
-                        borderRadius: 9999,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4
-                      }}>
-                        <span style={{ width: 4, height: 4, borderRadius: '50%', background: statusBadge.dot }} />
-                        {statusBadge.label}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontSize: 16, fontWeight: 800, color: '#164e32' }}>{quote.id}</span>
-                      <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>Order: {quote.orderId}</span>
-                    </div>
-                    <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>
-                      {quote.typeLabel}
-                    </div>
-
-                    <div style={{
-                      background: '#f8faf9',
-                      border: '1px solid #edf2ef',
-                      borderRadius: 8,
-                      padding: '8px 10px',
-                      marginTop: 8,
-                      fontSize: 10.5,
-                      color: '#334155'
-                    }}>
-                      <div>Fabric: <strong>{quote.specs.fabricType}</strong> ({quote.specs.gsm} GSM)</div>
-                      <div style={{ marginTop: 2 }}>Weave: <strong>{quote.specs.weave}</strong> &bull; {quote.specs.finishing}</div>
-                      <div style={{ marginTop: 2 }}>Quantity: <strong>{quote.totalQuantity.toLocaleString()} {quote.quantityUnit}</strong> &bull; Due: <strong>{quote.deadlineDate}</strong></div>
-                    </div>
-                  </div>
-
-                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div>
-                        <span style={{ fontSize: 9, color: '#64748b', display: 'block' }}>Proposed Price</span>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>
-                          ₹{quote.quotedAmount.toLocaleString()}
-                        </span>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: 9, color: '#64748b', display: 'block' }}>Gross Margin</span>
-                        <span style={{
-                          fontSize: 12,
-                          fontWeight: 800,
-                          color: fin.isPolicyCompliant ? '#16a34a' : '#dc2626'
-                        }}>
-                          {fin.marginPercent.toFixed(1)}% {fin.isPolicyCompliant ? '✓' : '⚠'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => {
-                          setActiveQuotationId(quote.id);
-                          setActiveDetailTab('overview');
-                        }}
-                        style={{
-                          flex: 1,
-                          background: '#ffffff',
-                          color: '#164e32',
-                          border: '1.5px solid #cde7d8',
-                          borderRadius: 8,
-                          padding: '5px',
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Review Details
-                      </button>
-
-                      {quote.status === 'pending_admin_approval' && (
-                        <button
-                          onClick={() => handleAdminApprove(quote.id)}
-                          style={{
-                            background: '#164e32',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: 8,
-                            padding: '5px 10px',
-                            fontSize: 10.5,
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Approve
-                        </button>
-                      )}
-
-                      {quote.status === 'approved' && (
-                        <button
-                          onClick={() => handleSendToClient(quote.id)}
-                          style={{
-                            background: '#0284c7',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: 8,
-                            padding: '5px 10px',
-                            fontSize: 10.5,
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Send
-                        </button>
-                      )}
-
-                      {quote.status === 'client_accepted' && (
-                        <button
-                          onClick={() => handleFinalizeQuotation(quote.id)}
-                          style={{
-                            background: '#15803d',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: 8,
-                            padding: '5px 10px',
-                            fontSize: 10.5,
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Finalize
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          {/* Table Footer with Pagination matching Reference Image 2 */}
+          <div className="untitled-table-footer">
+            <span style={{ fontSize: 13, color: '#475467', fontWeight: 500 }}>
+              Page 1 of {Math.max(1, Math.ceil(filteredQuotations.length / 5))}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="untitled-page-btn"
+                onClick={() => showToast("Navigated to previous page")}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="untitled-page-btn"
+                onClick={() => showToast("Navigated to next page")}
+              >
+                Next
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* RIGHT COLUMN: BUNDLES CARD (Textile Commercial Packages) */}
+        <aside className="ref-bundles-card">
+          <div className="ref-bundles-header">
+            <h3 className="ref-bundles-title">Commercial Packages</h3>
+            <span className="ref-bundles-avail-badge">
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#12b76a', display: 'inline-block' }} />
+              Active: 3
+            </span>
+          </div>
+
+          {/* Package 1 */}
+          <div className="ref-bundle-item">
+            <div className="ref-bundle-name">Premium Shirting Package</div>
+            <div className="ref-bundle-desc">
+              40s Combed Cotton Oxford with Bio-Wash enzyme finishing for corporate formalwear.
+            </div>
+            <div className="ref-bundle-apps-list">
+              <div className="ref-bundle-app-row">
+                <div className="ref-bundle-app-icon" style={{ background: '#fdf2f8', color: '#ea4c89' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800 }}>🧶</span>
+                </div>
+                <div>
+                  <div className="ref-bundle-app-name">40s Combed Cotton Yarn</div>
+                  <div className="ref-bundle-app-url">₹240/kg &bull; 833 kg required</div>
+                </div>
+              </div>
+              <div className="ref-bundle-app-row">
+                <div className="ref-bundle-app-icon" style={{ background: '#f4f3ff', color: '#a259ff' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800 }}>🧵</span>
+                </div>
+                <div>
+                  <div className="ref-bundle-app-name">Airjet Oxford Weave</div>
+                  <div className="ref-bundle-app-url">Shed A &bull; 850 RPM</div>
+                </div>
+              </div>
+              <div className="ref-bundle-app-row">
+                <div className="ref-bundle-app-icon" style={{ background: '#eff8ff', color: '#0284c7' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800 }}>✨</span>
+                </div>
+                <div>
+                  <div className="ref-bundle-app-name">Bio-Wash Enzyme Finishing</div>
+                  <div className="ref-bundle-app-url">Stenter finishing run</div>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="ref-bundle-btn"
+              onClick={() => {
+                setActiveQuotationId('QT-1001');
+                setActiveDetailTab('overview');
+              }}
+            >
+              ₹3.88L - Review Details
+            </button>
+          </div>
+
+          {/* Package 2 */}
+          <div className="ref-bundle-item">
+            <div className="ref-bundle-name">Denim Bottomwear Package</div>
+            <div className="ref-bundle-desc">
+              30s Ring Spun 3/1 Heavy Twill + Reactive Indigo Dyeing for durable suiting trousers.
+            </div>
+            <div className="ref-bundle-apps-list">
+              <div className="ref-bundle-app-row">
+                <div className="ref-bundle-app-icon" style={{ background: '#fef3c7', color: '#ea4c89' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800 }}>🧶</span>
+                </div>
+                <div>
+                  <div className="ref-bundle-app-name">30s Ring Spun Cotton</div>
+                  <div className="ref-bundle-app-url">₹210/kg &bull; Twill standard</div>
+                </div>
+              </div>
+              <div className="ref-bundle-app-row">
+                <div className="ref-bundle-app-icon" style={{ background: '#ecfdf5', color: '#10b981' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800 }}>👖</span>
+                </div>
+                <div>
+                  <div className="ref-bundle-app-name">3/1 Twill Weave Setup</div>
+                  <div className="ref-bundle-app-url">Shed B &bull; Airjet Loom #12</div>
+                </div>
+              </div>
+              <div className="ref-bundle-app-row">
+                <div className="ref-bundle-app-icon" style={{ background: '#fef2f2', color: '#f97316' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800 }}>💧</span>
+                </div>
+                <div>
+                  <div className="ref-bundle-app-name">Reactive Dye Shade 4B</div>
+                  <div className="ref-bundle-app-url">Delta-E: 0.42 (Passed)</div>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="ref-bundle-btn"
+              onClick={() => {
+                setActiveQuotationId('QT-1002');
+                setActiveDetailTab('overview');
+              }}
+            >
+              ₹8.40L - Review Details
+            </button>
+          </div>
+
+          {/* Package 3 */}
+          <div className="ref-bundle-item">
+            <div className="ref-bundle-name">Luxury Sateen Sheeting</div>
+            <div className="ref-bundle-desc">
+              60s Giza Long-Staple Cotton for high-density satin export bedding.
+            </div>
+            <button
+              type="button"
+              className="ref-bundle-btn"
+              onClick={() => {
+                setActiveQuotationId('QT-1003');
+                setActiveDetailTab('overview');
+              }}
+            >
+              ₹4.20L - Review Details
+            </button>
+          </div>
+        </aside>
       </div>
 
       {/* ===================================================================
@@ -2200,12 +2000,12 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
             maxHeight: '90vh',
             overflowY: 'auto',
             boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
-            border: '1.5px solid #edf2ef'
+            border: '1.5px solid #edf2ee'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <GitCompare size={17} color="#164e32" />
+                  <GitCompare size={17} color="#18191B" />
                   Quotation Comparison: Order {comparingOrderId} ({selectedClient.name})
                 </h3>
                 <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
@@ -2231,13 +2031,13 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
             {(() => {
               const quotesToCompare = clientQuotations.filter((q) => q.orderId === comparingOrderId);
               return (
-                <div style={{ border: '1px solid #edf2ef', borderRadius: 12, overflowX: 'auto' }}>
+                <div style={{ border: '1px solid #edf2ee', borderRadius: 12, overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                     <thead>
-                      <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ef' }}>
+                      <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ee' }}>
                         <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, width: 160, color: '#64748b' }}>Parameter</th>
                         {quotesToCompare.map((q) => (
-                          <th key={q.id} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 800, color: '#164e32', minWidth: 200 }}>
+                          <th key={q.id} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 800, color: '#18191B', minWidth: 200 }}>
                             <div>{q.id} ({q.version})</div>
                             <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500 }}>{q.typeLabel}</div>
                           </th>
@@ -2287,10 +2087,10 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                           </td>
                         ))}
                       </tr>
-                      <tr style={{ borderBottom: '1px solid #f8faf9', background: '#f8fdf9' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#164e32' }}>Proposed Price</td>
+                      <tr style={{ borderBottom: '1px solid #f8faf9', background: '#FDF2F3' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#18191B' }}>Proposed Price</td>
                         {quotesToCompare.map((q) => (
-                          <td key={q.id} style={{ padding: '8px 12px', fontWeight: 800, color: '#164e32', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+                          <td key={q.id} style={{ padding: '8px 12px', fontWeight: 800, color: '#18191B', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
                             ₹{q.quotedAmount.toLocaleString()}
                           </td>
                         ))}
@@ -2325,7 +2125,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                                 setActiveDetailTab('overview');
                               }}
                               style={{
-                                background: '#164e32',
+                                background: '#79B4B7',
                                 color: '#ffffff',
                                 border: 'none',
                                 borderRadius: 6,
@@ -2375,7 +2175,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
             maxHeight: '92vh',
             overflowY: 'auto',
             boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
-            border: '1.5px solid #edf2ef',
+            border: '1.5px solid #edf2ee',
             display: 'flex',
             flexDirection: 'column',
             gap: 12
@@ -2403,7 +2203,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ fontSize: 9.5, color: '#64748b', display: 'block' }}>Proposed Selling Price</span>
-                  <span style={{ fontSize: 18, fontWeight: 800, color: '#164e32' }}>₹{activeQuotation.quotedAmount.toLocaleString()}</span>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: '#18191B' }}>₹{activeQuotation.quotedAmount.toLocaleString()}</span>
                 </div>
                 <button
                   onClick={() => setActiveQuotationId(null)}
@@ -2415,7 +2215,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
             </div>
 
             {/* Sub-Tabs */}
-            <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #edf2ef', paddingBottom: 6, overflowX: 'auto' }}>
+            <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #edf2ee', paddingBottom: 6, overflowX: 'auto' }}>
               {[
                 { key: 'overview', label: '1. Specifications', icon: Layers },
                 { key: 'cost', label: '2. Cost Breakdown', icon: DollarSign },
@@ -2434,9 +2234,9 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                       display: 'flex',
                       alignItems: 'center',
                       gap: 5,
-                      background: isSelected ? '#164e32' : '#ffffff',
+                      background: isSelected ? '#79B4B7' : '#ffffff',
                       color: isSelected ? '#ffffff' : '#64748b',
-                      border: isSelected ? '1px solid #164e32' : '1px solid #e2e8f0',
+                      border: isSelected ? '1.5px solid #79B4B7' : '1px solid #E2E5E8',
                       borderRadius: 9999,
                       padding: '5px 12px',
                       fontSize: 10.5,
@@ -2465,10 +2265,10 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                   <div>Expiry: <strong>{activeQuotation.expiryDate}</strong></div>
                 </div>
 
-                <div style={{ border: '1px solid #edf2ef', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #edf2ee', borderRadius: 10, overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
                     <thead>
-                      <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ef', textAlign: 'left', color: '#64748b' }}>
+                      <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ee', textAlign: 'left', color: '#64748b' }}>
                         <th style={{ padding: '8px 10px' }}>Design / SKU</th>
                         <th style={{ padding: '8px 10px' }}>Category</th>
                         <th style={{ padding: '8px 10px', textAlign: 'right' }}>Quantity</th>
@@ -2485,7 +2285,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                           <td style={{ padding: '8px 10px', color: '#475569' }}>{p.category}</td>
                           <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{p.quantity.toLocaleString()} {p.unit}</td>
                           <td style={{ padding: '8px 10px', textAlign: 'right', color: '#64748b' }}>₹{p.unitPrice.toFixed(2)}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#164e32' }}>₹{p.totalPrice.toLocaleString()}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#18191B' }}>₹{p.totalPrice.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2496,10 +2296,10 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
 
             {/* TAB 2: COST BREAKDOWN */}
             {activeDetailTab === 'cost' && (
-              <div style={{ border: '1px solid #edf2ef', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ border: '1px solid #edf2ee', borderRadius: 10, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                   <thead>
-                    <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ef', color: '#64748b', textAlign: 'left' }}>
+                    <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ee', color: '#64748b', textAlign: 'left' }}>
                       <th style={{ padding: '8px 12px' }}>Cost Component</th>
                       <th style={{ padding: '8px 12px' }}>Calculation Basis</th>
                       <th style={{ padding: '8px 12px', textAlign: 'right' }}>Amount</th>
@@ -2516,7 +2316,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                   <tfoot>
                     <tr style={{ background: '#f8faf9', borderTop: '2px solid #e2e8f0', fontWeight: 800 }}>
                       <td colSpan={2} style={{ padding: '10px 12px' }}>Total Estimated Cost</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#164e32', fontSize: 13 }}>₹{activeFinancials.totalCost.toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#1B1918', fontSize: 13 }}>₹{activeFinancials.totalCost.toLocaleString()}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -2527,15 +2327,15 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
             {activeDetailTab === 'profit' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ef' }}>
+                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ee' }}>
                     <span style={{ fontSize: 9.5, color: '#64748b' }}>Estimated Cost</span>
                     <div style={{ fontSize: 17, fontWeight: 800, color: '#111827' }}>₹{activeFinancials.totalCost.toLocaleString()}</div>
                   </div>
-                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ef' }}>
+                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ee' }}>
                     <span style={{ fontSize: 9.5, color: '#64748b' }}>Selling Price</span>
-                    <div style={{ fontSize: 17, fontWeight: 800, color: '#164e32' }}>₹{activeQuotation.quotedAmount.toLocaleString()}</div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: '#18191B' }}>₹{activeQuotation.quotedAmount.toLocaleString()}</div>
                   </div>
-                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ef' }}>
+                  <div style={{ background: '#f8faf9', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid #edf2ee' }}>
                     <span style={{ fontSize: 9.5, color: '#64748b' }}>Expected Profit</span>
                     <div style={{ fontSize: 17, fontWeight: 800, color: activeFinancials.expectedProfit >= 0 ? '#059669' : '#dc2626' }}>
                       ₹{activeFinancials.expectedProfit.toLocaleString()}
@@ -2545,14 +2345,14 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
 
                 <div style={{
                   background: activeFinancials.isPolicyCompliant ? '#f0fdf4' : '#fef2f2',
-                  border: activeFinancials.isPolicyCompliant ? '1.5px solid #bbf7d0' : '1.5px solid #fecaca',
+                  border: activeFinancials.isPolicyCompliant ? '1.5px solid #FAF4EA' : '1.5px solid #fecaca',
                   borderRadius: 12,
                   padding: '12px 16px'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {activeFinancials.isPolicyCompliant ? <CheckCircle2 size={16} color="#16a34a" /> : <AlertTriangle size={16} color="#dc2626" />}
-                      <span style={{ fontSize: 12, fontWeight: 800, color: activeFinancials.isPolicyCompliant ? '#166534' : '#991b1b' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: activeFinancials.isPolicyCompliant ? '#1B1918' : '#991b1b' }}>
                         Gross Margin: {activeFinancials.marginPercent.toFixed(1)}% &bull;{' '}
                         {activeFinancials.isPolicyCompliant ? 'Policy Compliant (≥ 15.0%)' : 'Below Minimum 15.0% Policy – Admin Attention Required'}
                       </span>
@@ -2565,12 +2365,12 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
 
             {/* TAB 4: AI AGENT ADVISORY */}
             {activeDetailTab === 'ai' && (
-              <div style={{ background: '#f8faf9', borderRadius: 12, padding: '12px 16px', border: '1px solid #edf2ef' }}>
+              <div style={{ background: '#f8faf9', borderRadius: 12, padding: '12px 16px', border: '1px solid #edf2ee' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#164e32', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#18191B', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Sparkles size={13} /> AI Quotation Agent v2.4 Recommendations
                   </span>
-                  <span style={{ fontSize: 9.5, background: '#eaf6ef', color: '#164e32', padding: '2px 8px', borderRadius: 9999, fontWeight: 700 }}>
+                  <span style={{ fontSize: 9.5, background: '#FAF4EA', color: '#8A6529', padding: '2px 8px', borderRadius: 9999, fontWeight: 700 }}>
                     Confidence: {activeQuotation.aiRecommendation.confidenceScore}%
                   </span>
                 </div>
@@ -2602,13 +2402,13 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {activeQuotation.negotiations.map((neg) => (
-                      <div key={neg.id} style={{ background: '#f8faf9', border: '1px solid #edf2ef', borderRadius: 10, padding: '10px 12px', fontSize: 10.5 }}>
+                      <div key={neg.id} style={{ background: '#f8faf9', border: '1px solid #edf2ee', borderRadius: 10, padding: '10px 12px', fontSize: 10.5 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                           <span>{neg.date}</span>
                           <span style={{ fontWeight: 800, color: '#b45309' }}>{neg.status.replace('_', ' ').toUpperCase()}</span>
                         </div>
                         <div style={{ marginTop: 4, color: '#111827' }}><strong>Client Request:</strong> {neg.clientRequest}</div>
-                        <div style={{ marginTop: 2, color: '#164e32' }}><strong>Admin Decision:</strong> {neg.adminResponse}</div>
+                        <div style={{ marginTop: 2, color: '#1B1918' }}><strong>Admin Decision:</strong> {neg.adminResponse}</div>
                       </div>
                     ))}
                   </div>
@@ -2618,10 +2418,10 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
 
             {/* TAB 6: AUDIT TRAIL */}
             {activeDetailTab === 'history' && (
-              <div style={{ border: '1px solid #edf2ef', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ border: '1px solid #edf2ee', borderRadius: 10, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
                   <thead>
-                    <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ef', color: '#64748b', textAlign: 'left' }}>
+                    <tr style={{ background: '#f8faf9', borderBottom: '1px solid #edf2ee', color: '#64748b', textAlign: 'left' }}>
                       <th style={{ padding: '8px 10px', width: 130 }}>Timestamp</th>
                       <th style={{ padding: '8px 10px', width: 140 }}>Actor</th>
                       <th style={{ padding: '8px 10px', width: 130 }}>Action</th>
@@ -2633,7 +2433,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                       <tr key={h.id} style={{ borderBottom: '1px solid #f8faf9' }}>
                         <td style={{ padding: '8px 10px', color: '#64748b' }}>{h.timestamp}</td>
                         <td style={{ padding: '8px 10px', fontWeight: 600 }}>{h.actor}</td>
-                        <td style={{ padding: '8px 10px', fontWeight: 700, color: '#164e32' }}>{h.action}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: 700, color: '#18191B' }}>{h.action}</td>
                         <td style={{ padding: '8px 10px', color: '#334155' }}>{h.comments || '—'}</td>
                       </tr>
                     ))}
@@ -2653,7 +2453,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
               gap: 8
             }}>
               <div style={{ fontSize: 10, color: '#64748b', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <ShieldAlert size={13} color="#164e32" />
+                <ShieldAlert size={13} color="#f04438" />
                 <span>Binding Rule: Only an approved quotation can be sent to clients.</span>
               </div>
 
@@ -2683,7 +2483,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
                 {activeQuotation.status !== 'approved' && activeQuotation.status !== 'client_accepted' && activeQuotation.status !== 'finalized' && (
                   <button
                     onClick={() => handleAdminApprove(activeQuotation.id)}
-                    style={{ background: '#164e32', color: '#ffffff', border: 'none', borderRadius: 9999, padding: '6px 16px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ background: '#79B4B7', color: '#ffffff', border: 'none', borderRadius: 9999, padding: '6px 16px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
                   >
                     Approve Quotation
                   </button>
@@ -2738,7 +2538,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 10 }}>
               <button onClick={() => setShowRevisionModal(false)} style={{ background: '#f1f5f9', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 11 }}>Cancel</button>
-              <button onClick={handleConfirmRevision} style={{ background: '#d97706', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Submit</button>
+              <button onClick={handleConfirmRevision} style={{ background: '#d97706', color: '#18191B', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Submit</button>
             </div>
           </div>
         </div>
@@ -2761,7 +2561,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 10 }}>
               <button onClick={() => setShowRejectModal(false)} style={{ background: '#f1f5f9', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 11 }}>Cancel</button>
-              <button onClick={handleConfirmReject} style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Confirm Rejection</button>
+              <button onClick={handleConfirmReject} style={{ background: '#dc2626', color: '#18191B', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Confirm Rejection</button>
             </div>
           </div>
         </div>
@@ -2788,7 +2588,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
               </div>
               <div style={{ flex: 2 }}>
                 <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', display: 'block' }}>Resulting New Price</label>
-                <div style={{ padding: '6px 8px', background: '#f8faf9', borderRadius: 6, border: '1px solid #edf2ef', fontSize: 13, fontWeight: 800, color: '#164e32' }}>
+                <div style={{ padding: '6px 8px', background: '#f8faf9', borderRadius: 6, border: '1px solid #edf2ee', fontSize: 13, fontWeight: 800, color: '#18191B' }}>
                   ₹{Math.round(activeQuotation.quotedAmount * (1 - (parseFloat(discountConcessionInput) || 0) / 100)).toLocaleString()}
                 </div>
               </div>
@@ -2802,7 +2602,7 @@ export const QuotationApprovalsModule: React.FC<QuotationApprovalsModuleProps> =
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 12 }}>
               <button onClick={() => setShowDiscountModal(false)} style={{ background: '#f1f5f9', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 11 }}>Cancel</button>
-              <button onClick={handleConfirmConcession} style={{ background: '#164e32', color: '#ffffff', border: 'none', padding: '6px 16px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+              <button onClick={handleConfirmConcession} style={{ background: '#79B4B7', color: '#18191B', border: 'none', padding: '6px 16px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
                 Authorize &amp; Apply
               </button>
             </div>

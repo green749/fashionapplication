@@ -43,7 +43,7 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4, background: '#ffffff' }}>
       {/* 1. PAGE HEADER */}
       <div className="module-header-flat">
         <div>
@@ -54,8 +54,8 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
-            background: '#dff1ea',
-            color: '#1e473d',
+            background: '#F8F0DF',
+            color: '#18191B',
             padding: '5px 14px',
             borderRadius: 9999,
             fontSize: 11,
@@ -81,8 +81,8 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
               width: 30,
               height: 30,
               borderRadius: 9999,
-              background: '#dff1ea',
-              color: '#1e473d',
+              background: '#F8F0DF',
+              color: '#18191B',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -91,7 +91,7 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#1e473d' }}>{minProfitMargin}%</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#18191B' }}>{minProfitMargin}%</span>
             <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Net Profit</span>
           </div>
         </div>
@@ -178,8 +178,8 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
               padding: '6px 16px',
               borderRadius: 9999,
               border: activeTab === 'audit' ? '1px solid #c6e5db' : '1px solid #e2e8f0',
-              background: activeTab === 'audit' ? '#dff1ea' : '#ffffff',
-              color: activeTab === 'audit' ? '#1e473d' : '#64748b',
+              background: activeTab === 'audit' ? '#F8F0DF' : '#ffffff',
+              color: activeTab === 'audit' ? '#18191B' : '#64748b',
               fontSize: 11.5,
               fontWeight: activeTab === 'audit' ? 700 : 500,
               cursor: 'pointer',
@@ -194,8 +194,8 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
               padding: '6px 16px',
               borderRadius: 9999,
               border: activeTab === 'settings' ? '1px solid #c6e5db' : '1px solid #e2e8f0',
-              background: activeTab === 'settings' ? '#dff1ea' : '#ffffff',
-              color: activeTab === 'settings' ? '#1e473d' : '#64748b',
+              background: activeTab === 'settings' ? '#F8F0DF' : '#ffffff',
+              color: activeTab === 'settings' ? '#18191B' : '#64748b',
               fontSize: 11.5,
               fontWeight: activeTab === 'settings' ? 700 : 500,
               cursor: 'pointer',
@@ -217,8 +217,8 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
                     padding: '4px 10px',
                     borderRadius: 9999,
                     border: actorFilter === a ? '1px solid #c6e5db' : '1px solid #e2e8f0',
-                    background: actorFilter === a ? '#dff1ea' : '#ffffff',
-                    color: actorFilter === a ? '#1e473d' : '#64748b',
+                    background: actorFilter === a ? '#F8F0DF' : '#ffffff',
+                    color: actorFilter === a ? '#18191B' : '#64748b',
                     fontSize: 10.5,
                     fontWeight: actorFilter === a ? 700 : 500,
                     cursor: 'pointer'
@@ -299,8 +299,8 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
                       <span style={{
                         fontSize: 9.5,
                         fontWeight: 700,
-                        color: '#1e473d',
-                        background: '#dff1ea',
+                        color: '#18191B',
+                        background: '#F8F0DF',
                         padding: '2px 8px',
                         borderRadius: 9999
                       }}>
@@ -431,7 +431,7 @@ export const SettingsAuditModule: React.FC<SettingsAuditModuleProps> = ({ auditL
               </div>
 
               <div style={{ background: '#f8fafc', padding: 12, borderRadius: 16, border: '1px solid #e5e9ee' }}>
-                <strong style={{ color: '#1e473d', fontSize: 12 }}>3. Client (Brand Procurement)</strong>
+                <strong style={{ color: '#18191B', fontSize: 12 }}>3. Client (Brand Procurement)</strong>
                 <p style={{ color: '#64748b', fontSize: 11, marginTop: 4, margin: 0 }}>
                   Self-service: Request new quotations, accept approved contracts, track order stages live, negotiate via bargaining agent.
                 </p>

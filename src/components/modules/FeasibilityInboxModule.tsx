@@ -135,7 +135,7 @@ export const FeasibilityInboxModule: React.FC<FeasibilityInboxModuleProps> = ({
                         key={idx}
                         style={{
                           background: rf.severity === 'high' ? '#fef2f2' : (rf.severity === 'medium' ? '#fffbeb' : '#f0fdf4'),
-                          border: `1px solid ${rf.severity === 'high' ? '#fecaca' : (rf.severity === 'medium' ? '#fde68a' : '#bbf7d0')}`,
+                          border: `1px solid ${rf.severity === 'high' ? '#fecaca' : (rf.severity === 'medium' ? '#fde68a' : '#edf2ee')}`,
                           borderRadius: 8,
                           padding: '4px 8px',
                           fontSize: 10.5,

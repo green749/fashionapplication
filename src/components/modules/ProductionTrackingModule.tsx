@@ -1,9 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Activity,
-  AlertTriangle,
   CheckCircle2,
-  Clock,
   Layers,
   ChevronRight,
   Search,
@@ -12,7 +9,10 @@ import {
   AlertCircle,
   Check,
   X,
-  SlidersHorizontal
+  SlidersHorizontal,
+  MoreVertical,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import type { Order, AppUser } from '../../types';
 
@@ -663,6 +663,7 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
   const [selectedProductId, setSelectedProductId] = useState<string>('LP-901-A');
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showWorkspace, setShowWorkspace] = useState<boolean>(true);
 
   // Alerts & Shift Reports State
   const [riskAlerts] = useState<ProductionRiskAlert[]>(INITIAL_RISK_ALERTS);
@@ -948,22 +949,8 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
     showToast(`Stage ${currentStageNumber} verified & completed! Advanced product to Stage ${currentStageNumber + 1}.`);
   };
 
-  // Status badge styling helper
-  const getStatusBadge = (status: string, riskStatus?: string) => {
-    if (riskStatus === 'at_risk' || status === 'at_risk') {
-      return { label: 'At Risk', bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' };
-    }
-    if (status === 'completed') {
-      return { label: 'Completed', bg: '#dff1ea', color: '#164e32', border: '#bbf7d0' };
-    }
-    if (status === 'in_production') {
-      return { label: 'In Production', bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' };
-    }
-    return { label: 'Not Started', bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' };
-  };
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4, background: '#ffffff' }}>
       {/* =========================================================================
           1. CLEAN PAGE HEADER
           ========================================================================= */}
@@ -972,9 +959,7 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0a0d10', letterSpacing: '-0.02em', margin: 0 }}>
             Production Tracking
           </h1>
-          <p style={{ fontSize: 11.5, color: '#64748b', margin: '3px 0 0' }}>
-            Multi-product order progress, 6-stage manufacturing lifecycle, and daily shift performance
-          </p>
+          
         </div>
 
         {/* Global Module Actions */}
@@ -995,7 +980,7 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
               cursor: 'pointer'
             }}
           >
-            <History size={13} color="#164e32" />
+            <History size={13} color="#18191B" />
             Shift Log History
           </button>
 
@@ -1019,571 +1004,573 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
       </div>
 
       {/* =========================================================================
-          2. FOUR DYNAMIC PRODUCTION KPI CARDS (Section 2)
+          2. FOUR UNTITLED UI KPI METRIC CARDS (Exact match to Reference Image 1)
           ========================================================================= */}
-      <div className="kpi-strip-flat">
+      <div className="untitled-kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         {/* KPI 1: Active Orders */}
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Active Orders</span>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: '#e0f2fe',
-              color: '#0369a1',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Activity size={14} />
-            </div>
+        <div className="untitled-kpi-card">
+          <div className="untitled-kpi-header">
+            <span className="untitled-kpi-title">Active Orders</span>
+            <button className="untitled-kpi-menu-btn" title="Options"><MoreVertical size={16} /></button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>{activeOrdersCount}</span>
-            <span style={{ fontSize: 10.5, color: '#0369a1', fontWeight: 700 }}>In manufacturing</span>
+          <div className="untitled-kpi-body">
+            <span className="untitled-kpi-value">{activeOrdersCount}</span>
+            <span className="untitled-kpi-badge indigo">In manufacturing</span>
           </div>
         </div>
 
         {/* KPI 2: At-Risk Orders */}
-        <div className="kpi-cell-flat" style={{ borderLeft: atRiskOrdersCount > 0 ? '3px solid #dc2626' : '1px solid #e5e9ee' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>At-Risk Orders</span>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: '#fee2e2',
-              color: '#dc2626',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <AlertTriangle size={14} />
-            </div>
+        <div className="untitled-kpi-card">
+          <div className="untitled-kpi-header">
+            <span className="untitled-kpi-title">At-Risk Orders</span>
+            <button className="untitled-kpi-menu-btn" title="Options"><MoreVertical size={16} /></button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#dc2626' }}>{atRiskOrdersCount}</span>
-            <span style={{ fontSize: 10.5, color: '#dc2626', fontWeight: 700 }}>May miss deadline</span>
+          <div className="untitled-kpi-body">
+            <span className="untitled-kpi-value" style={{ color: atRiskOrdersCount > 0 ? '#b42318' : '#101828' }}>
+              {atRiskOrdersCount}
+            </span>
+            <span className={`untitled-kpi-badge ${atRiskOrdersCount > 0 ? 'danger' : 'success'}`}>
+              {atRiskOrdersCount > 0 ? 'Action needed' : 'All on track'}
+            </span>
           </div>
         </div>
 
         {/* KPI 3: Completed Orders */}
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Completed Orders</span>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: '#dff1ea',
-              color: '#164e32',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <CheckCircle2 size={14} />
-            </div>
+        <div className="untitled-kpi-card">
+          <div className="untitled-kpi-header">
+            <span className="untitled-kpi-title">Completed Orders</span>
+            <button className="untitled-kpi-menu-btn" title="Options"><MoreVertical size={16} /></button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#164e32' }}>{completedOrdersCount}</span>
-            <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 700 }}>100% dispatched</span>
+          <div className="untitled-kpi-body">
+            <span className="untitled-kpi-value">{completedOrdersCount}</span>
+            <span className="untitled-kpi-badge success"><ArrowUp size={11} strokeWidth={2.5} /> 100% dispatched</span>
           </div>
         </div>
 
         {/* KPI 4: On-Time Delivery */}
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>On-Time Delivery</span>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: '#ede9fe',
-              color: '#5b21b6',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Clock size={14} />
-            </div>
+        <div className="untitled-kpi-card">
+          <div className="untitled-kpi-header">
+            <span className="untitled-kpi-title">On-Time Delivery</span>
+            <button className="untitled-kpi-menu-btn" title="Options"><MoreVertical size={16} /></button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>{onTimeDeliveryPercent}%</span>
-            <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 700 }}>Target: 95%</span>
+          <div className="untitled-kpi-body">
+            <span className="untitled-kpi-value">{onTimeDeliveryPercent}%</span>
+            <span className="untitled-kpi-badge success">Target: 95%</span>
           </div>
         </div>
       </div>
 
       {/* =========================================================================
-          3. MAIN TWO-COLUMN CONTENT GRID (Section 10)
+          3. MAIN CONTENT: FULL-WIDTH PRODUCTION ORDERS TABLE + ORDER WORKSPACE
           ========================================================================= */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) minmax(320px, 0.95fr)', gap: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* LEFT COLUMN: Production Orders List with Filters & Search */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            {/* Header with Search and Filter Tabs */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Layers size={16} color="#164e32" />
-                <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
+        {/* FULL-WIDTH Production Orders (Untitled UI Modern Table Card) */}
+        <div className="untitled-table-card" style={{ width: '100%' }}>
+          {/* Table Toolbar */}
+          <div className="untitled-table-toolbar">
+            <div className="untitled-toolbar-filters">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 8 }}>
+                <Layers size={18} color="#18191B" />
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#101828', margin: 0 }}>
                   Production Orders
                 </h3>
               </div>
 
-              {/* Search & Filter Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: '#f8faf9',
-                  border: '1px solid #edf2ef',
-                  borderRadius: 9999,
-                  padding: '3px 8px',
-                  fontSize: 10.5
-                }}>
-                  <Search size={12} color="#94a3b8" />
-                  <input
-                    type="text"
-                    placeholder="Search order, client, product..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 10.5, width: 140 }}
-                  />
-                </div>
-
-                {/* Filter Pills */}
-                <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', padding: 2, borderRadius: 8 }}>
-                  {['all', 'in_production', 'at_risk', 'completed', 'not_started'].map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => setOrderStatusFilter(st)}
-                      style={{
-                        background: orderStatusFilter === st ? '#ffffff' : 'transparent',
-                        color: orderStatusFilter === st ? '#164e32' : '#64748b',
-                        border: 'none',
-                        borderRadius: 6,
-                        padding: '3px 8px',
-                        fontSize: 10,
-                        fontWeight: orderStatusFilter === st ? 700 : 500,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {st === 'all' ? 'All' : st === 'in_production' ? 'In Prod' : st === 'at_risk' ? 'At Risk' : st === 'completed' ? 'Done' : 'Pending'}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <button
+                type="button"
+                className={`untitled-filter-pill ${orderStatusFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setOrderStatusFilter('all')}
+              >
+                All orders
+              </button>
+              <button
+                type="button"
+                className={`untitled-filter-pill ${orderStatusFilter === 'in_production' ? 'active' : ''}`}
+                onClick={() => setOrderStatusFilter('in_production')}
+              >
+                In Production
+              </button>
+              <button
+                type="button"
+                className={`untitled-filter-pill ${orderStatusFilter === 'at_risk' ? 'active' : ''}`}
+                onClick={() => setOrderStatusFilter('at_risk')}
+              >
+                At Risk {orderStatusFilter === 'at_risk' && <span className="untitled-filter-remove">&times;</span>}
+              </button>
+              <button
+                type="button"
+                className={`untitled-filter-pill ${orderStatusFilter === 'completed' ? 'active' : ''}`}
+                onClick={() => setOrderStatusFilter('completed')}
+              >
+                Completed
+              </button>
             </div>
 
-            {/* Production Orders Table */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
-                <thead>
-                  <tr style={{ color: '#64748b', borderBottom: '1px solid #edf1f5', textAlign: 'left' }}>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Order ID & Client</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Products</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600, width: 105 }}>Weighted Progress</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Current Stage</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Deadline</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Status</th>
-                    <th style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600 }}>Action</th>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {/* Search input */}
+              <div className="untitled-search-input-wrap">
+                <Search size={14} color="#667085" />
+                <input
+                  type="text"
+                  className="untitled-search-input"
+                  placeholder="Search order, client..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="untitled-filter-remove"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {/* Workspace Toggle */}
+              <button
+                type="button"
+                className={`untitled-filter-pill ${showWorkspace ? 'active' : ''}`}
+                onClick={() => setShowWorkspace(!showWorkspace)}
+                style={{ fontWeight: 600, color: '#18191B' }}
+              >
+                {showWorkspace ? 'Hide Order Workspace' : 'Show Order Workspace'}
+              </button>
+            </div>
+          </div>
+
+          {/* Untitled UI Data Table */}
+          <div className="untitled-table-wrapper">
+            <table className="untitled-table">
+              <thead>
+                <tr>
+                  <th className="col-cb">
+                    <input
+                      type="checkbox"
+                      className="untitled-checkbox"
+                      checked={filteredOrders.length > 0 && selectedOrderId === filteredOrders[0].id}
+                      onChange={() => {}}
+                    />
+                  </th>
+                  <th style={{ width: 120 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      Order # <ArrowDown size={12} color="#667085" />
+                    </div>
+                  </th>
+                  <th>Client / Company</th>
+                  <th>Products &amp; Volume</th>
+                  <th>Current Stage</th>
+                  <th style={{ width: 160 }}>Progress</th>
+                  <th>Delivery Due</th>
+                  <th>Status</th>
+                  <th style={{ width: 100, textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: '36px', textAlign: 'center', color: '#667085' }}>
+                      No production orders found matching criteria.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((ord) => {
+                ) : (
+                  filteredOrders.map((ord) => {
                     const isSelected = ord.id === selectedOrderId;
-                    const badge = getStatusBadge(ord.status, ord.riskStatus);
                     const isAtRisk = ord.riskStatus === 'at_risk';
+
+                    let pillClass = 'indigo';
+                    let statusText = 'In Production';
+                    if (ord.status === 'completed' || ord.weightedProgress >= 95) {
+                      pillClass = 'success';
+                      statusText = 'Completed';
+                    } else if (isAtRisk) {
+                      pillClass = 'danger';
+                      statusText = 'At Risk';
+                    }
 
                     return (
                       <tr
                         key={ord.id}
+                        className={isSelected ? 'is-selected' : ''}
                         onClick={() => handleSelectOrder(ord.id)}
-                        style={{
-                          borderBottom: '1px solid #f8fafc',
-                          cursor: 'pointer',
-                          background: isSelected ? '#f0fdf4' : 'transparent',
-                          transition: 'background 0.12s ease'
-                        }}
+                        style={{ cursor: 'pointer' }}
                       >
-                        <td style={{ padding: '10px 6px' }}>
-                          <div style={{ fontWeight: 800, color: isSelected ? '#164e32' : '#0a0d10' }}>
-                            {ord.id}
+                        <td
+                          className="col-cb"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            className="untitled-checkbox"
+                            checked={isSelected}
+                            onChange={() => handleSelectOrder(ord.id)}
+                          />
+                        </td>
+                        <td style={{ fontWeight: 700, color: '#101828', whiteSpace: 'nowrap' }}>
+                          #{ord.id}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, color: '#101828' }}>{ord.clientName}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>{ord.productCategory}</div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, color: '#101828' }}>
+                            {ord.totalQuantity.toLocaleString()} pcs
                           </div>
-                          <div style={{ fontSize: 10, color: '#64748b' }}>
-                            {ord.clientName}
+                          <div style={{ fontSize: 11, color: '#64748b' }}>
+                            {ord.products.length} Design{ord.products.length > 1 ? 's' : ''}
                           </div>
                         </td>
-
-                        <td style={{ padding: '10px 6px' }}>
-                          <div style={{ fontWeight: 600, color: '#0a0d10' }}>
-                            {ord.products.length} Design{ord.products.length > 1 ? 's' : ''} ({ord.totalQuantity.toLocaleString()} pcs)
-                          </div>
-                          <div style={{ fontSize: 9.5, color: '#94a3b8' }}>
-                            {ord.products.map((p) => p.name.split('-')[0].trim()).slice(0, 2).join(', ')}
-                            {ord.products.length > 2 ? '...' : ''}
-                          </div>
+                        <td style={{ color: '#344054', fontWeight: 500 }}>
+                          {ord.products[0]?.currentStage || 'Yarn Inward'}
                         </td>
-
-                        <td style={{ padding: '10px 6px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
+                        <td>
+                          <div className="untitled-progress-wrap">
+                            <div className="untitled-progress-track">
                               <div
+                                className="untitled-progress-fill"
                                 style={{
                                   width: `${ord.weightedProgress}%`,
-                                  height: '100%',
-                                  background: isAtRisk ? '#f59e0b' : ord.weightedProgress === 100 ? '#16a34a' : '#164e32',
-                                  borderRadius: 9999
+                                  background: isAtRisk ? '#f04438' : ord.weightedProgress >= 95 ? '#12b76a' : '#79B4B7'
                                 }}
                               />
                             </div>
-                            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#334155', minWidth: 28 }}>
-                              {ord.weightedProgress}%
-                            </span>
+                            <span className="untitled-progress-percent">{ord.weightedProgress}%</span>
                           </div>
                         </td>
-
-                        <td style={{ padding: '10px 6px', color: '#475569' }}>
-                          {ord.products[0]?.currentStage || 'Yarn Inward'}
+                        <td style={{ color: '#344054', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                          {ord.committedDeliveryDate}
                         </td>
-
-                        <td style={{ padding: '10px 6px' }}>
-                          <div style={{ color: '#0a0d10', fontWeight: 600 }}>
-                            {ord.committedDeliveryDate.replace(' 2026', '')}
-                          </div>
-                          {isAtRisk && (
-                            <div style={{ fontSize: 9, color: '#dc2626', fontWeight: 700 }}>
-                              Forecast: {ord.forecastDeliveryDate.replace(' 2026', '')}
-                            </div>
-                          )}
-                        </td>
-
-                        <td style={{ padding: '10px 6px' }}>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 3,
-                            padding: '2px 7px',
-                            borderRadius: 9999,
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                            background: badge.bg,
-                            color: badge.color,
-                            border: `1px solid ${badge.border}`
-                          }}>
-                            {badge.label}
+                        <td>
+                          <span className={`untitled-status-pill ${pillClass}`}>
+                            <span className="dot" />
+                            <span>{statusText}</span>
                           </span>
                         </td>
-
-                        <td style={{ padding: '10px 6px', textAlign: 'right' }}>
+                        <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right' }}>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            type="button"
+                            className="admin-btn-secondary"
+                            style={{
+                              padding: '6px 14px',
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: '#18191B',
+                              background: '#F8F0DF',
+                              border: '1px solid #79B4B7',
+                              borderRadius: 8,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => {
                               handleSelectOrder(ord.id);
                               setShowTimelineModal(true);
                             }}
-                            style={{
-                              background: '#ffffff',
-                              border: '1px solid #e2e8f0',
-                              borderRadius: 9999,
-                              padding: '3px 8px',
-                              fontSize: 10,
-                              fontWeight: 700,
-                              color: '#164e32',
-                              cursor: 'pointer'
-                            }}
                           >
-                            Timeline &rarr;
+                            Inspect
                           </button>
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="untitled-table-footer">
+            <button type="button" className="untitled-page-btn" onClick={() => {}}>Previous</button>
+            <span className="untitled-page-info">
+              Page 1 of {Math.max(1, Math.ceil(filteredOrders.length / 5))}
+            </span>
+            <button type="button" className="untitled-page-btn" onClick={() => {}}>Next</button>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Order Summary, Multi-Product Breakdown, Stage Performance, Alerts */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {/* CARD 1: ORDER SUMMARY & MULTI-PRODUCT LIST (Section 4) */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>
-                  Selected Order Workspace
-                </span>
-                <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0a0d10', margin: '2px 0 0' }}>
-                  {currentOrder.id} &bull; {currentOrder.clientName}
-                </h3>
-                <div style={{ fontSize: 10.5, color: '#64748b' }}>
-                  {currentOrder.productCategory} &bull; Total: <strong>{currentOrder.totalQuantity.toLocaleString()} pcs</strong>
-                </div>
-              </div>
-
-              <div style={{ textAlign: 'right' }}>
-                <span style={{
-                  background: currentOrder.riskStatus === 'at_risk' ? '#fee2e2' : '#dff1ea',
-                  color: currentOrder.riskStatus === 'at_risk' ? '#dc2626' : '#164e32',
-                  padding: '2px 8px',
-                  borderRadius: 9999,
-                  fontSize: 10,
-                  fontWeight: 800
-                }}>
-                  {currentOrder.riskStatus === 'at_risk' ? 'At Risk' : 'On Track'}
-                </span>
-                <div style={{ fontSize: 9.5, color: '#64748b', marginTop: 2 }}>
-                  Committed: {currentOrder.committedDeliveryDate}
-                </div>
-              </div>
-            </div>
-
-            {/* Quantity-Weighted Progress Bar */}
+        {/* SELECTED ORDER WORKSPACE: Appears cleanly below full-width table */}
+        {showWorkspace && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* CARD 1: ORDER SUMMARY & MULTI-PRODUCT LIST */}
             <div style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: 14,
-              padding: '10px 12px'
+              background: '#ffffff',
+              borderRadius: 16,
+              border: '1px solid #eaecf0',
+              padding: 20,
+              boxShadow: '0 1px 2px rgba(16, 24, 40, 0.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                <span>Quantity-Weighted Progress:</span>
-                <span style={{ color: currentOrder.riskStatus === 'at_risk' ? '#b45309' : '#164e32' }}>
-                  {currentOrder.weightedProgress}% Complete
-                </span>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#667085', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Selected Order Workspace
+                  </div>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: '#101828', margin: '4px 0 2px' }}>
+                    #{currentOrder.id} &bull; {currentOrder.clientName}
+                  </h3>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    {currentOrder.productCategory} &bull; Total: <strong>{currentOrder.totalQuantity.toLocaleString()} pcs</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{
+                      background: currentOrder.riskStatus === 'at_risk' ? '#fee2e2' : '#F8F0DF',
+                      color: currentOrder.riskStatus === 'at_risk' ? '#dc2626' : '#18191B',
+                      padding: '4px 10px',
+                      borderRadius: 9999,
+                      fontSize: 11,
+                      fontWeight: 700
+                    }}>
+                      {currentOrder.riskStatus === 'at_risk' ? 'At Risk' : 'On Track'}
+                    </span>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                      Committed: {currentOrder.committedDeliveryDate}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowTimelineModal(true)}
+                    className="admin-btn-primary"
+                    style={{ padding: '8px 16px', fontSize: 12, fontWeight: 600, color: '#18191B' }}
+                  >
+                    <span>Inspect 6-Stage Timeline ({currentProduct.designCode})</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
-              <div style={{ height: 6, width: '100%', background: '#e2e8f0', borderRadius: 9999, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    width: `${currentOrder.weightedProgress}%`,
-                    height: '100%',
-                    background: currentOrder.riskStatus === 'at_risk' ? '#f59e0b' : '#164e32',
-                    borderRadius: 9999
-                  }}
-                />
+
+              {/* Quantity-Weighted Progress Bar */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 12,
+                padding: '12px 16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  <span>Quantity-Weighted Progress:</span>
+                  <span style={{ color: currentOrder.riskStatus === 'at_risk' ? '#b45309' : '#18191B' }}>
+                    {currentOrder.weightedProgress}% Complete
+                  </span>
+                </div>
+                <div style={{ height: 8, width: '100%', background: '#e2e8f0', borderRadius: 9999, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${currentOrder.weightedProgress}%`,
+                      height: '100%',
+                      background: currentOrder.riskStatus === 'at_risk' ? '#f59e0b' : '#79B4B7',
+                      borderRadius: 9999
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                  <span>Supervisor: {currentOrder.assignedSupervisorName}</span>
+                  <span>Forecast Delivery: <strong>{currentOrder.forecastDeliveryDate}</strong></span>
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, color: '#64748b', marginTop: 4 }}>
-                <span>Supervisor: {currentOrder.assignedSupervisorName}</span>
-                <span>Forecast Delivery: <strong>{currentOrder.forecastDeliveryDate}</strong></span>
+
+              {/* Multi-Product Independent Progress List in Responsive Grid */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#101828' }}>
+                  Products / Designs in this Order ({currentOrder.products.length}):
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: currentOrder.products.length > 2 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
+                  gap: 12
+                }}>
+                  {currentOrder.products.map((prod) => {
+                    const isSelected = prod.id === selectedProductId;
+                    return (
+                      <div
+                        key={prod.id}
+                        onClick={() => setSelectedProductId(prod.id)}
+                        style={{
+                          border: isSelected ? '1.5px solid #79B4B7' : '1px solid #edf1f5',
+                          background: isSelected ? '#f8fdfa' : '#ffffff',
+                          borderRadius: 12,
+                          padding: '12px 14px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ fontWeight: 700, fontSize: 12, color: '#0a0d10' }}>
+                            {prod.name} <span style={{ fontSize: 10, color: '#94a3b8' }}>({prod.designCode})</span>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#18191B' }}>
+                            {prod.progressPercent}%
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: '#64748b' }}>
+                          <span>Stage: <strong>{prod.currentStage}</strong></span>
+                          <span>Produced: {prod.completedQuantity.toLocaleString()} / {prod.quantity.toLocaleString()} pcs</span>
+                        </div>
+
+                        <div style={{ height: 6, width: '100%', background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${prod.progressPercent}%`,
+                              height: '100%',
+                              background: prod.riskStatus === 'at_risk' ? '#f59e0b' : '#79B4B7'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Multi-Product Independent Progress List (Section 4) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#0a0d10' }}>
-                Products / Designs in this Order ({currentOrder.products.length}):
+            {/* LOWER ROW: CARDS 2 & 3 SIDE-BY-SIDE */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 16 }}>
+              {/* CARD 2: PLANNED VS ACTUAL PERFORMANCE */}
+              <div style={{
+                background: '#ffffff',
+                borderRadius: 16,
+                border: '1px solid #eaecf0',
+                padding: 18,
+                boxShadow: '0 1px 2px rgba(16, 24, 40, 0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <SlidersHorizontal size={16} color="#18191B" />
+                    <h3 style={{ fontSize: 13.5, fontWeight: 700, color: '#101828', margin: 0 }}>
+                      Planned vs Actual Shift Performance
+                    </h3>
+                  </div>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                    Stage: {currentActiveStage.name}
+                  </span>
+                </div>
+
+                {/* Target vs Actual Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 12,
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>Daily Target</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#0a0d10', marginTop: 2 }}>
+                      {dailyTarget.toLocaleString()} pcs
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>Actual Output</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: dailyAchievementPercent >= 90 ? '#16a34a' : '#b45309', marginTop: 2 }}>
+                      {dailyActual.toLocaleString()} pcs
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>Achievement</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: dailyAchievementPercent >= 90 ? '#16a34a' : '#dc2626', marginTop: 2 }}>
+                      {dailyAchievementPercent}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Variance indicator */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: '#64748b' }}>
+                  <span>
+                    Daily Variance: <strong style={{ color: dailyVariance >= 0 ? '#16a34a' : '#dc2626' }}>
+                      {dailyVariance >= 0 ? `+${dailyVariance}` : dailyVariance} pcs
+                    </strong>
+                  </span>
+                  <span>
+                    Rejected: <strong style={{ color: '#dc2626' }}>{currentActiveStage.rejectedQuantity} pcs</strong>
+                  </span>
+                  <span>Machine: {currentActiveStage.assignedMachine.split(' ')[0]}</span>
+                </div>
               </div>
 
-              {currentOrder.products.map((prod) => {
-                const isSelected = prod.id === selectedProductId;
-                return (
-                  <div
-                    key={prod.id}
-                    onClick={() => setSelectedProductId(prod.id)}
+              {/* CARD 3: PRODUCTION RISK ALERTS */}
+              <div style={{
+                background: '#ffffff',
+                borderRadius: 16,
+                border: '1px solid #eaecf0',
+                padding: 18,
+                boxShadow: '0 1px 2px rgba(16, 24, 40, 0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <AlertCircle size={16} color="#dc2626" />
+                    <h3 style={{ fontSize: 13.5, fontWeight: 700, color: '#101828', margin: 0 }}>
+                      Production Risk Alerts ({riskAlerts.length})
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowAllAlertsModal(true)}
                     style={{
-                      border: isSelected ? '1.5px solid #164e32' : '1px solid #edf1f5',
-                      background: isSelected ? '#f8fdfa' : '#ffffff',
-                      borderRadius: 12,
-                      padding: '8px 10px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#18191B',
+                      fontSize: 11,
+                      fontWeight: 700,
                       cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4
+                      padding: 0
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontWeight: 700, fontSize: 11, color: '#0a0d10' }}>
-                        {prod.name} <span style={{ fontSize: 9.5, color: '#94a3b8' }}>({prod.designCode})</span>
+                    View All &rarr;
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {topAlerts.map((alt) => (
+                    <div
+                      key={alt.id}
+                      style={{
+                        background: alt.severity === 'critical' ? '#fef2f2' : '#fffbeb',
+                        border: `1px solid ${alt.severity === 'critical' ? '#fecaca' : '#fde68a'}`,
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: alt.severity === 'critical' ? '#dc2626' : '#b45309' }}>
+                          {alt.alertType.replace(/_/g, ' ')} &bull; {alt.affectedOrderId}
+                        </span>
+                        <span style={{ fontSize: 9.5, color: '#94a3b8' }}>{alt.detectedTime}</span>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: '#164e32' }}>
-                        {prod.progressPercent}%
-                      </span>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#1e293b' }}>
+                        {alt.reason}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#475569' }}>
+                        Action: <strong>{alt.suggestedAction}</strong>
+                      </div>
                     </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, color: '#64748b' }}>
-                      <span>Stage: <strong>{prod.currentStage}</strong></span>
-                      <span>Produced: {prod.completedQuantity.toLocaleString()} / {prod.quantity.toLocaleString()} pcs</span>
-                    </div>
-
-                    <div style={{ height: 4, width: '100%', background: '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${prod.progressPercent}%`,
-                          height: '100%',
-                          background: prod.riskStatus === 'at_risk' ? '#f59e0b' : '#164e32'
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Action to open 6-stage lifecycle modal */}
-            <button
-              onClick={() => setShowTimelineModal(true)}
-              className="admin-btn-primary"
-              style={{ width: '100%', padding: '8px 12px', fontSize: 11, justifyContent: 'center' }}
-            >
-              <span>Inspect 6-Stage Timeline ({currentProduct.designCode})</span>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-
-          {/* CARD 2: PLANNED VS ACTUAL PERFORMANCE (Section 6) */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <SlidersHorizontal size={15} color="#164e32" />
-                <h3 style={{ fontSize: 13.5, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
-                  Planned vs Actual Shift Performance
-                </h3>
-              </div>
-              <span style={{ fontSize: 10, color: '#64748b' }}>
-                Stage: {currentActiveStage.name}
-              </span>
-            </div>
-
-            {/* Target vs Actual Grid */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 8,
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: 14,
-              padding: '10px 12px',
-              textAlign: 'center'
-            }}>
-              <div>
-                <div style={{ fontSize: 9.5, color: '#64748b' }}>Daily Target</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', marginTop: 2 }}>
-                  {dailyTarget.toLocaleString()} pcs
+                  ))}
                 </div>
               </div>
-
-              <div>
-                <div style={{ fontSize: 9.5, color: '#64748b' }}>Actual Output</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: dailyAchievementPercent >= 90 ? '#16a34a' : '#b45309', marginTop: 2 }}>
-                  {dailyActual.toLocaleString()} pcs
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 9.5, color: '#64748b' }}>Achievement</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: dailyAchievementPercent >= 90 ? '#16a34a' : '#dc2626', marginTop: 2 }}>
-                  {dailyAchievementPercent}%
-                </div>
-              </div>
-            </div>
-
-            {/* Variance indicator */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
-              <span>
-                Daily Variance: <strong style={{ color: dailyVariance >= 0 ? '#16a34a' : '#dc2626' }}>
-                  {dailyVariance >= 0 ? `+${dailyVariance}` : dailyVariance} pcs
-                </strong>
-              </span>
-              <span>
-                Rejected: <strong style={{ color: '#dc2626' }}>{currentActiveStage.rejectedQuantity} pcs</strong>
-              </span>
-              <span>Machine: {currentActiveStage.assignedMachine.split(' ')[0]}</span>
             </div>
           </div>
-
-          {/* CARD 3: PRODUCTION RISK ALERTS (Top 3 - Section 7) */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={15} color="#dc2626" />
-                <h3 style={{ fontSize: 13.5, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
-                  Production Risk Alerts ({riskAlerts.length})
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowAllAlertsModal(true)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#164e32',
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: 0
-                }}
-              >
-                View All &rarr;
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {topAlerts.map((alt) => (
-                <div
-                  key={alt.id}
-                  style={{
-                    background: alt.severity === 'critical' ? '#fef2f2' : '#fffbeb',
-                    border: `1px solid ${alt.severity === 'critical' ? '#fecaca' : '#fde68a'}`,
-                    borderRadius: 12,
-                    padding: '8px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 3
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', color: alt.severity === 'critical' ? '#dc2626' : '#b45309' }}>
-                      {alt.alertType.replace(/_/g, ' ')} &bull; {alt.affectedOrderId}
-                    </span>
-                    <span style={{ fontSize: 9, color: '#94a3b8' }}>{alt.detectedTime}</span>
-                  </div>
-                  <div style={{ fontSize: 10.5, fontWeight: 600, color: '#1e293b' }}>
-                    {alt.reason}
-                  </div>
-                  <div style={{ fontSize: 9.5, color: '#475569' }}>
-                    Action: <strong>{alt.suggestedAction}</strong>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* =========================================================================
@@ -1628,8 +1615,8 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
                       width: 26,
                       height: 26,
                       borderRadius: '50%',
-                      background: isComplete ? '#dff1ea' : isInProg ? '#164e32' : '#f1f5f9',
-                      color: isComplete ? '#164e32' : isInProg ? '#ffffff' : '#94a3b8',
+                      background: isComplete ? '#F8F0DF' : isInProg ? '#79B4B7' : '#f1f5f9',
+                      color: isComplete ? '#18191B' : isInProg ? '#18191B' : '#94a3b8',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -1666,7 +1653,7 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
                   <div
                     key={stg.id}
                     style={{
-                      border: isInProg ? '1.5px solid #164e32' : '1px solid #e2e8f0',
+                      border: isInProg ? '1.5px solid #79B4B7' : '1px solid #e2e8f0',
                       borderRadius: 16,
                       background: isInProg ? '#fafdfb' : '#ffffff',
                       padding: '12px 16px',
@@ -1681,8 +1668,8 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
                           width: 22,
                           height: 22,
                           borderRadius: '50%',
-                          background: isComplete ? '#dff1ea' : isInProg ? '#164e32' : '#f1f5f9',
-                          color: isComplete ? '#164e32' : isInProg ? '#ffffff' : '#94a3b8',
+                          background: isComplete ? '#F8F0DF' : isInProg ? '#79B4B7' : '#f1f5f9',
+                          color: isComplete ? '#18191B' : isInProg ? '#18191B' : '#94a3b8',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1706,7 +1693,7 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
                           <button
                             onClick={() => handleAdvanceStage(currentOrder.id, currentProduct.id, stg.stageNumber)}
                             style={{
-                              background: '#164e32',
+                              background: '#79B4B7',
                               color: '#ffffff',
                               border: 'none',
                               borderRadius: 9999,
@@ -1893,11 +1880,11 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 10, color: '#164e32', fontWeight: 700, display: 'block', marginBottom: 2 }}>Produced Output</label>
+                  <label style={{ fontSize: 10, color: '#18191B', fontWeight: 700, display: 'block', marginBottom: 2 }}>Produced Output</label>
                   <input
                     type="number"
                     className="admin-form-input"
-                    style={{ border: '2px solid #bbf7d0', background: '#f0fdf4' }}
+                    style={{ border: '2px solid #edf2ee', background: '#F8F0DF' }}
                     value={shiftForm.actualProducedQuantity}
                     onChange={(e) => setShiftForm({ ...shiftForm, actualProducedQuantity: +e.target.value })}
                     required
@@ -2088,7 +2075,7 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
                   <div style={{ fontSize: 10, color: '#b45309', marginTop: 2 }}>
                     <strong>Impact:</strong> {alt.businessImpact}
                   </div>
-                  <div style={{ fontSize: 10, color: '#164e32', marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: '#18191B', marginTop: 2 }}>
                     <strong>Recommended:</strong> {alt.suggestedAction}
                   </div>
                 </div>
@@ -2106,7 +2093,7 @@ export const ProductionTrackingModule: React.FC<ProductionTrackingModuleProps> =
           position: 'fixed',
           bottom: 24,
           right: 24,
-          background: '#164e32',
+          background: '#79B4B7',
           color: '#ffffff',
           borderRadius: 14,
           padding: '10px 18px',

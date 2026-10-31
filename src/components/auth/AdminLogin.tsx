@@ -60,8 +60,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
             width: 44,
             height: 44,
             borderRadius: '50%',
-            background: '#111315',
-            color: '#ffffff',
+            background: '#1B1918',
+            color: '#79B4B7',
+            border: '1.5px solid rgba(215, 171, 106, 0.45)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -71,7 +72,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
             <Layers size={20} />
           </div>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: '#0a0d10', letterSpacing: '-0.4px', margin: 0 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 800, color: '#18191B', letterSpacing: '-0.4px', margin: 0 }}>
               LOOMPILOT
             </h1>
             <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0' }}>
@@ -82,17 +83,17 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
 
         {/* Security Alert Badge */}
         <div style={{
-          background: '#dff1ea',
-          border: '1px solid #c6e5db',
+          background: '#FAF4EA',
+          border: '1.5px solid #79B4B7',
           borderRadius: 20,
           padding: '12px 16px',
           display: 'flex',
           alignItems: 'center',
           gap: 10,
           fontSize: 11,
-          color: '#1e473d'
+          color: '#1B1918'
         }}>
-          <Shield size={18} style={{ flexShrink: 0 }} />
+          <Shield size={18} style={{ flexShrink: 0, color: '#18191B' }} />
           <div>
             <strong>Restricted Access:</strong> Managing Director & Floor Administration portal. Role-based isolation strictly enforced.
           </div>
@@ -155,11 +156,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ accentColor: '#111315', cursor: 'pointer' }}
+                style={{ accentColor: '#79B4B7', cursor: 'pointer' }}
               />
               <span>Keep admin session active</span>
             </label>
-            <span style={{ color: '#1e473d', fontWeight: 600, cursor: 'pointer' }}>Forgot Password?</span>
+            <span style={{ color: '#18191B', fontWeight: 600, cursor: 'pointer' }}>Forgot Password?</span>
           </div>
 
           <button type="submit" className="admin-btn-primary" style={{ width: '100%', padding: '10px 16px', justifyContent: 'center' }}>
@@ -173,8 +174,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
           onClick={handleFillDemo}
           title="Click to autofill demo credentials"
           style={{
-            background: '#f8fafc',
-            border: '1px solid #e5e9ee',
+            background: '#FAF4EA',
+            border: '1px solid #E8DEC8',
             borderRadius: 20,
             padding: '12px 14px',
             cursor: 'pointer',
@@ -183,7 +184,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
             gap: 4
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#1e473d', fontSize: 11 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#18191B', fontSize: 11 }}>
             <CheckCircle2 size={13} />
             <span>Click to Autofill Demo Credentials</span>
           </div>

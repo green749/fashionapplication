@@ -11,7 +11,9 @@ import {
   Plus,
   History,
   CheckCircle2,
-  X
+  X,
+  MoreHorizontal,
+  ArrowUpDown
 } from 'lucide-react';
 import type { AppUser, Order } from '../../types';
 
@@ -545,6 +547,8 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
   const [selectedMachineShedFilter, setSelectedMachineShedFilter] = useState<string>('all');
   const [machineSearchQuery, setMachineSearchQuery] = useState<string>('');
   const [workerSearchQuery, setWorkerSearchQuery] = useState<string>('');
+  const [selectedMachineIds, setSelectedMachineIds] = useState<string[]>(['M-101']);
+  const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>(['wrk_1']);
 
   // Modals
   const [showAddSupervisorModal, setShowAddSupervisorModal] = useState<boolean>(false);
@@ -869,7 +873,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4, background: '#ffffff' }}>
       {/* =========================================================================
           1. CLEAN PAGE HEADER
           ========================================================================= */}
@@ -878,9 +882,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0a0d10', letterSpacing: '-0.02em', margin: 0 }}>
             Supervisors & Resources
           </h1>
-          <p style={{ fontSize: 11.5, color: '#64748b', margin: '3px 0 0' }}>
-            Floor supervisor authority, shed machinery health, workforce attendance, and production capacity
-          </p>
+          
         </div>
 
         {/* Action Buttons */}
@@ -901,7 +903,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
               cursor: 'pointer'
             }}
           >
-            <History size={13} color="#164e32" />
+            <History size={13} color="#18191B" />
             Resource Audit Log
           </button>
 
@@ -939,8 +941,8 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
               width: 28,
               height: 28,
               borderRadius: 9999,
-              background: '#dff1ea',
-              color: '#164e32',
+              background: '#F8F0DF',
+              color: '#18191B',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -949,7 +951,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#164e32' }}>{totalWorkersPresent} / {totalWorkersCount}</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#18191B' }}>{totalWorkersPresent} / {totalWorkersCount}</span>
             <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 700 }}>{workerAttendancePercent}% Present</span>
           </div>
         </div>
@@ -1018,7 +1020,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: totalBreakdownMachines > 0 ? '#dc2626' : '#164e32' }}>
+            <span style={{ fontSize: 24, fontWeight: 800, color: totalBreakdownMachines > 0 ? '#dc2626' : '#18191B' }}>
               {totalBreakdownMachines} Breakdown{totalBreakdownMachines !== 1 ? 's' : ''}
             </span>
             <span style={{ fontSize: 10.5, color: totalBreakdownMachines > 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
@@ -1037,9 +1039,9 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
           style={{
             padding: '6px 18px',
             borderRadius: 9999,
-            border: activeTab === 'supervisors' ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
-            background: activeTab === 'supervisors' ? '#dff1ea' : '#ffffff',
-            color: activeTab === 'supervisors' ? '#164e32' : '#64748b',
+            border: activeTab === 'supervisors' ? '1px solid #edf2ee' : '1px solid #e2e8f0',
+            background: activeTab === 'supervisors' ? '#F8F0DF' : '#ffffff',
+            color: activeTab === 'supervisors' ? '#18191B' : '#64748b',
             fontSize: 11.5,
             fontWeight: activeTab === 'supervisors' ? 700 : 500,
             cursor: 'pointer',
@@ -1054,9 +1056,9 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
           style={{
             padding: '6px 18px',
             borderRadius: 9999,
-            border: activeTab === 'resources' ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
-            background: activeTab === 'resources' ? '#dff1ea' : '#ffffff',
-            color: activeTab === 'resources' ? '#164e32' : '#64748b',
+            border: activeTab === 'resources' ? '1px solid #edf2ee' : '1px solid #e2e8f0',
+            background: activeTab === 'resources' ? '#F8F0DF' : '#ffffff',
+            color: activeTab === 'resources' ? '#18191B' : '#64748b',
             fontSize: 11.5,
             fontWeight: activeTab === 'resources' ? 700 : 500,
             cursor: 'pointer',
@@ -1084,7 +1086,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <HardHat size={16} color="#164e32" />
+                <HardHat size={16} color="#18191B" />
                 <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
                   Supervisor Directory & Floor Responsibilities
                 </h3>
@@ -1106,7 +1108,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                     onClick={() => setSelectedSupervisorId(s.id)}
                     style={{
                       background: isSelected ? '#f8fdfa' : '#ffffff',
-                      border: isSelected ? '1.5px solid #164e32' : '1px solid #edf1f5',
+                      border: isSelected ? '1.5px solid #79B4B7' : '1px solid #edf1f5',
                       padding: '12px 16px',
                       borderRadius: 18,
                       cursor: 'pointer',
@@ -1122,7 +1124,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                           width: 28,
                           height: 28,
                           borderRadius: '50%',
-                          background: isSelected ? '#164e32' : '#f1f5f9',
+                          background: isSelected ? '#79B4B7' : '#f1f5f9',
                           color: isSelected ? '#ffffff' : '#475569',
                           display: 'flex',
                           alignItems: 'center',
@@ -1142,8 +1144,8 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{
-                          background: s.attendanceStatus === 'On Duty' ? '#dff1ea' : '#fee2e2',
-                          color: s.attendanceStatus === 'On Duty' ? '#164e32' : '#dc2626',
+                          background: s.attendanceStatus === 'On Duty' ? '#F8F0DF' : '#fee2e2',
+                          color: s.attendanceStatus === 'On Duty' ? '#18191B' : '#dc2626',
                           padding: '2px 8px',
                           borderRadius: 9999,
                           fontSize: 9.5,
@@ -1161,7 +1163,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#164e32',
+                            color: '#18191B',
                             fontSize: 10.5,
                             fontWeight: 700,
                             cursor: 'pointer',
@@ -1182,7 +1184,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                     <div style={{ marginTop: 2 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', marginBottom: 3 }}>
                         <span>Active Workload ({s.activeOrdersCount} / {s.maxOrderCapacity} orders):</span>
-                        <strong style={{ color: s.workloadPercent >= 100 ? '#dc2626' : '#164e32' }}>
+                        <strong style={{ color: s.workloadPercent >= 100 ? '#dc2626' : '#18191B' }}>
                           {s.workloadPercent}% ({s.availabilityStatus})
                         </strong>
                       </div>
@@ -1191,7 +1193,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                           style={{
                             width: `${s.workloadPercent}%`,
                             height: '100%',
-                            background: s.workloadPercent >= 100 ? '#dc2626' : s.workloadPercent >= 75 ? '#f59e0b' : '#164e32'
+                            background: s.workloadPercent >= 100 ? '#dc2626' : s.workloadPercent >= 75 ? '#f59e0b' : '#79B4B7'
                           }}
                         />
                       </div>
@@ -1317,7 +1319,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
                         <span style={{ color: '#0a0d10' }}>{ao.id} &bull; {ao.productName}</span>
-                        <span style={{ color: '#164e32' }}>{ao.producedMeters.toLocaleString()} / {ao.quantityMeters.toLocaleString()} m</span>
+                        <span style={{ color: '#18191B' }}>{ao.producedMeters.toLocaleString()} / {ao.quantityMeters.toLocaleString()} m</span>
                       </div>
                       <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>
                         Deadline: {ao.deadlineDate} &bull; Phase: {ao.currentPhase}
@@ -1346,7 +1348,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
               onClick={() => setResourceSubView('sheds')}
               style={{
                 background: resourceSubView === 'sheds' ? '#ffffff' : 'transparent',
-                color: resourceSubView === 'sheds' ? '#164e32' : '#64748b',
+                color: resourceSubView === 'sheds' ? '#18191B' : '#64748b',
                 border: 'none',
                 borderRadius: 8,
                 padding: '4px 12px',
@@ -1361,7 +1363,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
               onClick={() => setResourceSubView('machines')}
               style={{
                 background: resourceSubView === 'machines' ? '#ffffff' : 'transparent',
-                color: resourceSubView === 'machines' ? '#164e32' : '#64748b',
+                color: resourceSubView === 'machines' ? '#18191B' : '#64748b',
                 border: 'none',
                 borderRadius: 8,
                 padding: '4px 12px',
@@ -1376,7 +1378,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
               onClick={() => setResourceSubView('workforce')}
               style={{
                 background: resourceSubView === 'workforce' ? '#ffffff' : 'transparent',
-                color: resourceSubView === 'workforce' ? '#164e32' : '#64748b',
+                color: resourceSubView === 'workforce' ? '#18191B' : '#64748b',
                 border: 'none',
                 borderRadius: 8,
                 padding: '4px 12px',
@@ -1391,7 +1393,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
               onClick={() => setResourceSubView('allocation')}
               style={{
                 background: resourceSubView === 'allocation' ? '#ffffff' : 'transparent',
-                color: resourceSubView === 'allocation' ? '#164e32' : '#64748b',
+                color: resourceSubView === 'allocation' ? '#18191B' : '#64748b',
                 border: 'none',
                 borderRadius: 8,
                 padding: '4px 12px',
@@ -1433,8 +1435,8 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                         </div>
                       </div>
                       <span style={{
-                        background: '#dff1ea',
-                        color: '#164e32',
+                        background: '#F8F0DF',
+                        color: '#18191B',
                         padding: '2px 8px',
                         borderRadius: 9999,
                         fontSize: 9.5,
@@ -1496,8 +1498,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                           <button
                             onClick={() => handleApproveOvertime(otPending.id)}
                             style={{
-                              background: '#164e32',
-                              color: '#ffffff',
+                              background: '#79B4B7', color: '#18191B',
                               border: 'none',
                               borderRadius: 9999,
                               padding: '4px 10px',
@@ -1525,7 +1526,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                             style={{
                               background: 'transparent',
                               border: 'none',
-                              color: '#164e32',
+                              color: '#18191B',
                               fontSize: 10.5,
                               fontWeight: 700,
                               cursor: 'pointer'
@@ -1555,7 +1556,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Activity size={16} color="#164e32" />
+                  <Activity size={16} color="#18191B" />
                   <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
                     Machinery Inventory & Operating Telemetry
                   </h3>
@@ -1596,95 +1597,107 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                 </div>
               </div>
 
-              {/* Machines Table */}
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+              {/* Machines Table (Unified Modern Design) */}
+              <div className="modern-data-table-wrapper">
+                <table className="modern-data-table">
                   <thead>
-                    <tr style={{ color: '#64748b', borderBottom: '1px solid #edf1f5', textAlign: 'left' }}>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Machine ID & Name</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Shed</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Speed / RPM</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Assigned Order</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Operating Hours</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Status</th>
-                      <th style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600 }}>Actions</th>
+                    <tr>
+                      <th className="col-checkbox">
+                        <input
+                          type="checkbox"
+                          className="modern-checkbox"
+                          checked={filteredMachines.length > 0 && filteredMachines.every(m => selectedMachineIds.includes(m.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMachineIds(Array.from(new Set([...selectedMachineIds, ...filteredMachines.map(m => m.id)])));
+                            } else {
+                              const curIds = new Set(filteredMachines.map(m => m.id));
+                              setSelectedMachineIds(selectedMachineIds.filter(id => !curIds.has(id)));
+                            }
+                          }}
+                        />
+                      </th>
+                      <th>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          Machine ID &amp; Name <ArrowUpDown size={11} />
+                        </div>
+                      </th>
+                      <th>Shed</th>
+                      <th>Speed / RPM</th>
+                      <th>Assigned Order</th>
+                      <th>Operating Hours</th>
+                      <th>Status</th>
+                      <th style={{ width: 44, textAlign: 'center' }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredMachines.map((m) => {
+                      const isSelected = selectedMachineIds.includes(m.id);
                       const isBroken = m.status === 'Breakdown';
                       const isRunning = m.status === 'Running';
+                      const isMaintenance = m.status === 'Maintenance';
 
                       return (
-                        <tr key={m.id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                          <td style={{ padding: '9px 6px' }}>
-                            <div style={{ fontWeight: 800, color: '#0a0d10' }}>{m.id}</div>
+                        <tr
+                          key={m.id}
+                          className={isSelected ? 'is-selected' : ''}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td
+                            className="col-checkbox"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              className="modern-checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (isSelected) {
+                                  setSelectedMachineIds(selectedMachineIds.filter(id => id !== m.id));
+                                } else {
+                                  setSelectedMachineIds([...selectedMachineIds, m.id]);
+                                }
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 800, color: '#111827' }}>#{m.id}</div>
                             <div style={{ fontSize: 10, color: '#64748b' }}>{m.name}</div>
                           </td>
-                          <td style={{ padding: '9px 6px', color: '#475569' }}>{m.shedName}</td>
-                          <td style={{ padding: '9px 6px', color: '#164e32', fontWeight: 700 }}>{m.operatingSpeed}</td>
-                          <td style={{ padding: '9px 6px' }}>
+                          <td style={{ color: '#475569' }}>{m.shedName}</td>
+                          <td style={{ color: '#18191B', fontWeight: 700 }}>{m.operatingSpeed}</td>
+                          <td>
                             {m.assignedOrderId ? (
                               <span style={{ color: '#0369a1', fontWeight: 700 }}>
-                                {m.assignedOrderId} ({m.assignedStage})
+                                #{m.assignedOrderId} ({m.assignedStage})
                               </span>
                             ) : (
                               <span style={{ color: '#94a3b8' }}>Unallocated</span>
                             )}
                           </td>
-                          <td style={{ padding: '9px 6px', color: '#64748b' }}>{m.operatingHours} hrs</td>
-                          <td style={{ padding: '9px 6px' }}>
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 3,
-                              padding: '2px 8px',
-                              borderRadius: 9999,
-                              fontSize: 9.5,
-                              fontWeight: 700,
-                              background: isBroken ? '#fee2e2' : isRunning ? '#dff1ea' : '#f1f5f9',
-                              color: isBroken ? '#dc2626' : isRunning ? '#164e32' : '#64748b'
-                            }}>
-                              {m.status}
+                          <td style={{ color: '#64748b', fontSize: 11.5 }}>{m.operatingHours} hrs</td>
+                          <td>
+                            <span className={`status-dot-pill ${isBroken ? 'failed' : isRunning ? 'fulfilled' : isMaintenance ? 'pending' : 'confirmed'}`}>
+                              {m.status.toUpperCase()}
                             </span>
                           </td>
-                          <td style={{ padding: '9px 6px', textAlign: 'right' }}>
-                            {isBroken ? (
-                              <button
-                                onClick={() => handleMarkMachineAvailable(m.id)}
-                                style={{
-                                  background: '#dff1ea',
-                                  color: '#164e32',
-                                  border: '1px solid #bbf7d0',
-                                  borderRadius: 9999,
-                                  padding: '3px 8px',
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Mark Repaired & Available
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => {
+                          <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className="modern-table-row-action"
+                              title={isBroken ? "Mark Repaired" : "Breakdown / Options"}
+                              onClick={() => {
+                                if (isBroken) {
+                                  handleMarkMachineAvailable(m.id);
+                                } else {
                                   setBreakdownTargetMachine(m);
                                   setShowBreakdownModal(true);
-                                }}
-                                style={{
-                                  background: '#ffffff',
-                                  color: '#dc2626',
-                                  border: '1px solid #fecaca',
-                                  borderRadius: 9999,
-                                  padding: '3px 8px',
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Log Breakdown
-                              </button>
-                            )}
+                                }
+                              }}
+                            >
+                              <MoreHorizontal size={15} />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1708,7 +1721,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Users size={16} color="#164e32" />
+                  <Users size={16} color="#18191B" />
                   <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
                     Workforce Directory & Shift Roster
                   </h3>
@@ -1746,64 +1759,91 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                 </div>
               </div>
 
-              {/* Workforce Table */}
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+              {/* Workforce Table (Unified Modern Design) */}
+              <div className="modern-data-table-wrapper">
+                <table className="modern-data-table">
                   <thead>
-                    <tr style={{ color: '#64748b', borderBottom: '1px solid #edf1f5', textAlign: 'left' }}>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Employee ID & Name</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Skill / Specialization</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Shed & Shift</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Assignment</th>
-                      <th style={{ padding: '8px 6px', fontWeight: 600 }}>Attendance</th>
-                      <th style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600 }}>Actions</th>
+                    <tr>
+                      <th className="col-checkbox">
+                        <input
+                          type="checkbox"
+                          className="modern-checkbox"
+                          checked={filteredWorkforce.length > 0 && filteredWorkforce.every(w => selectedWorkerIds.includes(w.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedWorkerIds(Array.from(new Set([...selectedWorkerIds, ...filteredWorkforce.map(w => w.id)])));
+                            } else {
+                              const curIds = new Set(filteredWorkforce.map(w => w.id));
+                              setSelectedWorkerIds(selectedWorkerIds.filter(id => !curIds.has(id)));
+                            }
+                          }}
+                        />
+                      </th>
+                      <th>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          Employee ID &amp; Name <ArrowUpDown size={11} />
+                        </div>
+                      </th>
+                      <th>Skill / Specialization</th>
+                      <th>Shed &amp; Shift</th>
+                      <th>Assignment</th>
+                      <th>Attendance</th>
+                      <th style={{ width: 44, textAlign: 'center' }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredWorkforce.map((w) => {
+                      const isSelected = selectedWorkerIds.includes(w.id);
                       const isPresent = w.attendanceStatus === 'Present';
+
                       return (
-                        <tr key={w.id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                          <td style={{ padding: '9px 6px' }}>
-                            <div style={{ fontWeight: 800, color: '#0a0d10' }}>{w.name}</div>
+                        <tr
+                          key={w.id}
+                          className={isSelected ? 'is-selected' : ''}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td
+                            className="col-checkbox"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              className="modern-checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (isSelected) {
+                                  setSelectedWorkerIds(selectedWorkerIds.filter(id => id !== w.id));
+                                } else {
+                                  setSelectedWorkerIds([...selectedWorkerIds, w.id]);
+                                }
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 800, color: '#111827' }}>{w.name}</div>
                             <div style={{ fontSize: 9.5, color: '#0369a1', fontWeight: 600 }}>{w.empId}</div>
                           </td>
-                          <td style={{ padding: '9px 6px', color: '#475569' }}>{w.skill}</td>
-                          <td style={{ padding: '9px 6px', color: '#475569' }}>
+                          <td style={{ color: '#475569' }}>{w.skill}</td>
+                          <td style={{ color: '#475569' }}>
                             {w.shedName} &bull; {w.shift.split(' ')[0]}
                           </td>
-                          <td style={{ padding: '9px 6px', fontWeight: 600, color: '#0a0d10' }}>
+                          <td style={{ fontWeight: 600, color: '#111827' }}>
                             {w.currentAssignment}
                           </td>
-                          <td style={{ padding: '9px 6px' }}>
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 3,
-                              padding: '2px 8px',
-                              borderRadius: 9999,
-                              fontSize: 9.5,
-                              fontWeight: 700,
-                              background: isPresent ? '#dff1ea' : '#fee2e2',
-                              color: isPresent ? '#164e32' : '#dc2626'
-                            }}>
-                              {w.attendanceStatus}
+                          <td>
+                            <span className={`status-dot-pill ${isPresent ? 'fulfilled' : 'failed'}`}>
+                              {w.attendanceStatus.toUpperCase()}
                             </span>
                           </td>
-                          <td style={{ padding: '9px 6px', textAlign: 'right' }}>
+                          <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                             <button
+                              type="button"
+                              className="modern-table-row-action"
+                              title={`Toggle ${isPresent ? 'Absent' : 'Present'}`}
                               onClick={() => handleUpdateWorkerAttendance(w.id, isPresent ? 'Absent' : 'Present')}
-                              style={{
-                                background: '#ffffff',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: 9999,
-                                padding: '2px 8px',
-                                fontSize: 10,
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
                             >
-                              Toggle {isPresent ? 'Absent' : 'Present'}
+                              <MoreHorizontal size={15} />
                             </button>
                           </td>
                         </tr>
@@ -1838,7 +1878,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
               {/* Evaluation Card for LP-902 */}
               <div style={{
                 background: '#f8fafc',
-                border: '1.5px solid #bbf7d0',
+                border: '1.5px solid #edf2ee',
                 borderRadius: 18,
                 padding: '14px 16px',
                 display: 'flex',
@@ -1847,14 +1887,14 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: '#164e32', textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: '#18191B', textTransform: 'uppercase' }}>
                       Recommended Resource Allocation for Order LP-902
                     </span>
                     <div style={{ fontSize: 13, fontWeight: 800, color: '#0a0d10', marginTop: 2 }}>
                       Urban Textiles &bull; Cotton Shirts (8,000 pcs)
                     </div>
                   </div>
-                  <span style={{ background: '#dff1ea', color: '#164e32', padding: '2px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 700 }}>
+                  <span style={{ background: '#F8F0DF', color: '#18191B', padding: '2px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 700 }}>
                     Capacity Feasible
                   </span>
                 </div>
@@ -1962,7 +2002,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Daily Shift Report Status:</span>
-                  <span style={{ fontWeight: 700, color: '#164e32' }}>{selectedSupervisor.dailyReportStatus} ({selectedSupervisor.reportSubmittedAt})</span>
+                  <span style={{ fontWeight: 700, color: '#18191B' }}>{selectedSupervisor.dailyReportStatus} ({selectedSupervisor.reportSubmittedAt})</span>
                 </div>
               </div>
 
@@ -2140,7 +2180,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
                   style={{
                     flex: 1,
                     background: '#dc2626',
-                    color: '#ffffff',
+                    color: '#18191B',
                     border: 'none',
                     borderRadius: 9999,
                     padding: '10px 14px',
@@ -2443,8 +2483,7 @@ export const SupervisorsResourcesModule: React.FC<SupervisorsResourcesModuleProp
           position: 'fixed',
           bottom: 24,
           right: 24,
-          background: '#164e32',
-          color: '#ffffff',
+          background: '#79B4B7', color: '#18191B',
           borderRadius: 14,
           padding: '10px 18px',
           fontSize: 11.5,

@@ -82,18 +82,18 @@ export const BuyMaterialsModal: React.FC<BuyMaterialsModalProps> = ({
           </div>
 
           <div style={{
-            background: '#dff1ea',
+            background: '#FAF4EA',
             padding: '12px 16px',
             borderRadius: 18,
             fontSize: 11.5,
-            color: '#1e473d',
-            border: '1px solid #c6e5db'
+            color: '#18191B',
+            border: '1px solid #79B4B7'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
               <span>Total Purchase Commitment:</span>
               <span style={{ fontSize: 14 }}>${totalCost.toLocaleString()}</span>
             </div>
-            <p style={{ fontSize: 10.5, color: '#1e473d', marginTop: 4, margin: '4px 0 0' }}>
+            <p style={{ fontSize: 10.5, color: '#18191B', marginTop: 4, margin: '4px 0 0' }}>
               * Rule: Creates purchase decision & supplier order. Feasibility Agent recalculates ETA immediately.
             </p>
           </div>

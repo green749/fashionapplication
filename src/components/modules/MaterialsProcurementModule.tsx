@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   ShoppingCart,
-  Package,
   Layers,
   X,
   Search,
@@ -14,7 +13,11 @@ import {
   Check,
   ClipboardCheck,
   History,
-  ArrowRight
+  ArrowRight,
+  MoreVertical,
+  ArrowUp,
+  ArrowDown,
+  Filter
 } from 'lucide-react';
 import type { MaterialRequirement, Order } from '../../types';
 
@@ -782,6 +785,9 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [rejectingPoNo, setRejectingPoNo] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>(['mat_cotton_40s']);
+  const [selectedPoIds, setSelectedPoIds] = useState<string[]>(['PO-1001']);
+  const [showAlertsSection, setShowAlertsSection] = useState<boolean>(true);
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1158,7 +1164,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
         return { bg: '#ede9fe', color: '#6d28d9', border: '#ddd6fe' };
       case 'Fully Received':
       case 'Completed':
-        return { bg: '#dff1ea', color: '#164e32', border: '#bbf7d0' };
+        return { bg: '#F8F0DF', color: '#18191B', border: '#edf2ee' };
       case 'Rejected':
       case 'Cancelled':
         return { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' };
@@ -1168,7 +1174,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflowY: 'auto', paddingRight: 4, background: '#ffffff' }}>
       {/* =========================================================================
           1. CLEAN EXECUTIVE PAGE HEADER
           ========================================================================= */}
@@ -1177,9 +1183,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0a0d10', letterSpacing: '-0.02em', margin: 0 }}>
             Materials & Procurement
           </h1>
-          <p style={{ fontSize: 11.5, color: '#64748b', margin: '3px 0 0' }}>
-            Executive overview of factory material requirements, committed shortages, and purchase orders
-          </p>
+          
         </div>
 
         {/* Essential Action Shortcuts */}
@@ -1200,7 +1204,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
               cursor: 'pointer'
             }}
           >
-            <History size={13} color="#164e32" />
+            <History size={13} color="#18191B" />
             Stock Ledger & Audit
           </button>
 
@@ -1211,16 +1215,16 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
               alignItems: 'center',
               gap: 5,
               background: '#ffffff',
-              border: '1px solid #cde7d8',
+              border: '1px solid #edf2ee',
               borderRadius: 9999,
               padding: '6px 13px',
               fontSize: 11,
               fontWeight: 700,
-              color: '#164e32',
+              color: '#18191B',
               cursor: 'pointer'
             }}
           >
-            <ClipboardCheck size={13} color="#164e32" />
+            <ClipboardCheck size={13} color="#18191B" />
             Record QC Inward
           </button>
 
@@ -1236,98 +1240,58 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
       </div>
 
       {/* =========================================================================
-          2. FOUR COMPACT EXECUTIVE KPI INDICATORS (Requirement 1)
+          2. FOUR UNTITLED UI KPI METRIC CARDS (Exact match to Reference Image 1)
           ========================================================================= */}
-      <div className="kpi-strip-flat">
+      <div className="untitled-kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         {/* KPI 1: Total Material Types */}
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Total Material Types</span>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: '#ede9fe',
-              color: '#5b21b6',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Boxes size={14} />
-            </div>
+        <div className="untitled-kpi-card">
+          <div className="untitled-kpi-header">
+            <span className="untitled-kpi-title">Total Material Types</span>
+            <button className="untitled-kpi-menu-btn" title="Options"><MoreVertical size={16} /></button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>{totalMaterialTypes}</span>
-            <span style={{ fontSize: 10.5, color: '#64748b', fontWeight: 600 }}>Active items</span>
+          <div className="untitled-kpi-body">
+            <span className="untitled-kpi-value">{totalMaterialTypes}</span>
+            <span className="untitled-kpi-badge neutral">Active items</span>
           </div>
         </div>
 
         {/* KPI 2: Critical Material Shortages */}
-        <div className="kpi-cell-flat" style={{ borderLeft: criticalMaterialShortages > 0 ? '3px solid #dc2626' : '1px solid #e5e9ee' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Critical Material Shortages</span>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: '#fee2e2',
-              color: '#dc2626',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <AlertTriangle size={14} />
-            </div>
+        <div className="untitled-kpi-card">
+          <div className="untitled-kpi-header">
+            <span className="untitled-kpi-title">Critical Material Shortages</span>
+            <button className="untitled-kpi-menu-btn" title="Options"><MoreVertical size={16} /></button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#dc2626' }}>{criticalMaterialShortages}</span>
-            <span style={{ fontSize: 10.5, color: '#dc2626', fontWeight: 700 }}>Action needed</span>
+          <div className="untitled-kpi-body">
+            <span className="untitled-kpi-value" style={{ color: criticalMaterialShortages > 0 ? '#b42318' : '#101828' }}>
+              {criticalMaterialShortages}
+            </span>
+            <span className={`untitled-kpi-badge ${criticalMaterialShortages > 0 ? 'danger' : 'success'}`}>
+              {criticalMaterialShortages > 0 ? 'Action needed' : 'All clear'}
+            </span>
           </div>
         </div>
 
         {/* KPI 3: Pending Purchase Approvals */}
-        <div className="kpi-cell-flat" style={{ borderLeft: pendingPurchaseApprovals > 0 ? '3px solid #f59e0b' : '1px solid #e5e9ee' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Pending Purchase Approvals</span>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: '#fef3c7',
-              color: '#b45309',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Package size={14} />
-            </div>
+        <div className="untitled-kpi-card">
+          <div className="untitled-kpi-header">
+            <span className="untitled-kpi-title">Pending Purchase Approvals</span>
+            <button className="untitled-kpi-menu-btn" title="Options"><MoreVertical size={16} /></button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#0a0d10' }}>{pendingPurchaseApprovals}</span>
-            <span style={{ fontSize: 10.5, color: '#b45309', fontWeight: 700 }}>Awaiting Admin</span>
+          <div className="untitled-kpi-body">
+            <span className="untitled-kpi-value">{pendingPurchaseApprovals}</span>
+            <span className="untitled-kpi-badge warning">Awaiting Admin</span>
           </div>
         </div>
 
         {/* KPI 4: Available Stock Types */}
-        <div className="kpi-cell-flat">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Available Stock Types</span>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: '#dff1ea',
-              color: '#164e32',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <CheckCircle2 size={14} />
-            </div>
+        <div className="untitled-kpi-card">
+          <div className="untitled-kpi-header">
+            <span className="untitled-kpi-title">Available Stock Types</span>
+            <button className="untitled-kpi-menu-btn" title="Options"><MoreVertical size={16} /></button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, margin: '6px 0 0' }}>
-            <span style={{ fontSize: 24, fontWeight: 800, color: '#164e32' }}>{availableStockTypes}</span>
-            <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 700 }}>Sufficient buffer</span>
+          <div className="untitled-kpi-body">
+            <span className="untitled-kpi-value">{availableStockTypes}</span>
+            <span className="untitled-kpi-badge success"><ArrowUp size={11} strokeWidth={2.5} /> Sufficient buffer</span>
           </div>
         </div>
       </div>
@@ -1335,472 +1299,681 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
       {/* =========================================================================
           3. CLEAN TWO-COLUMN MAIN CONTENT (Requirement: Left wider, Right compact)
           ========================================================================= */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) minmax(320px, 0.95fr)', gap: 16 }}>
+      {/* =========================================================================
+          3. FULL-WIDTH MATERIALS & PROCUREMENT WORKSPACE
+          ========================================================================= */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* LEFT COLUMN: Material Requirements (Primary) + Recent Purchase Orders */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* COMPACT TOP ALERTS STRIP (Small place in UI for quick triage) */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: 12,
+          border: '1px solid #eaecf0',
+          padding: '10px 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          boxShadow: '0 1px 2px rgba(16, 24, 40, 0.05)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#fef3f2',
+              color: '#b42318',
+              padding: '4px 10px',
+              borderRadius: 9999,
+              fontSize: 11.5,
+              fontWeight: 700
+            }}>
+              <AlertTriangle size={14} color="#dc2626" />
+              <span>{alerts.length} Active Alerts</span>
+            </div>
 
-          {/* CARD 1: MATERIAL REQUIREMENTS (Primary Section - Top 5 Prioritized) */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            {/* Header with compact search & order selector */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Boxes size={16} color="#164e32" />
-                <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
+            {criticalMaterialShortages > 0 && (
+              <span style={{ fontSize: 12, color: '#344054' }}>
+                &bull; <strong>{criticalMaterialShortages} Critical Shortage{criticalMaterialShortages > 1 ? 's' : ''}</strong> (e.g. 400 kg shortfall halting LP-903)
+              </span>
+            )}
+
+            {pendingPurchaseApprovals > 0 && primaryPendingPo && (
+              <span style={{ fontSize: 12, color: '#344054' }}>
+                &bull; <strong>{pendingPurchaseApprovals} Pending PO</strong> ({primaryPendingPo.poNo} &bull; ₹{primaryPendingPo.totalAmount.toLocaleString('en-IN')})
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {primaryPendingPo && (
+              <button
+                type="button"
+                onClick={() => setShowApprovalModal(true)}
+                className="admin-btn-secondary"
+                style={{
+                  padding: '5px 12px',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: '#18191B',
+                  background: '#F8F0DF',
+                  border: '1px solid #79B4B7',
+                  borderRadius: 8,
+                  cursor: 'pointer'
+                }}
+              >
+                Review {primaryPendingPo.poNo}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowAllAlertsModal(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#18191B',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: '4px 8px'
+              }}
+            >
+              View All Alerts &rarr;
+            </button>
+
+            <button
+              type="button"
+              className={`untitled-filter-pill ${showAlertsSection ? 'active' : ''}`}
+              onClick={() => setShowAlertsSection(!showAlertsSection)}
+              style={{ fontWeight: 600, color: '#18191B' }}
+            >
+              {showAlertsSection ? 'Hide Alert Cards' : 'Show Alert Cards'}
+            </button>
+          </div>
+        </div>
+
+        {/* FULL-WIDTH CARD 1: MATERIAL REQUIREMENTS */}
+        <div className="untitled-table-card" style={{ width: '100%' }}>
+          {/* Table Toolbar */}
+          <div className="untitled-table-toolbar">
+            <div className="untitled-toolbar-filters">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 8 }}>
+                <Boxes size={18} color="#18191B" />
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#101828', margin: 0 }}>
                   Material Requirements
                 </h3>
-                <span style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '2px 7px', borderRadius: 9999, fontWeight: 600 }}>
-                  Top 5 by priority
-                </span>
               </div>
 
-              {/* Order selector, search & View All */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: '#f8faf9',
-                  border: '1px solid #edf2ef',
-                  borderRadius: 9999,
-                  padding: '3px 8px',
-                  fontSize: 10.5
-                }}>
-                  <Search size={12} color="#94a3b8" />
-                  <input
-                    type="text"
-                    placeholder="Search material..."
-                    value={mrpSearchQuery}
-                    onChange={(e) => setMrpSearchQuery(e.target.value)}
-                    style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 10.5, width: 110 }}
-                  />
-                </div>
-
-                <select
-                  className="admin-form-select"
-                  value={selectedOrderId}
-                  onChange={(e) => setSelectedOrderId(e.target.value)}
-                  style={{ fontSize: 10.5, padding: '3px 8px' }}
-                >
-                  <option value="all">All Orders</option>
-                  <option value="LP-901">Order LP-901</option>
-                  <option value="LP-902">Order LP-902</option>
-                  <option value="LP-903">Order LP-903</option>
-                  <option value="TX-1024">Order TX-1024</option>
-                  <option value="TX-1025">Order TX-1025</option>
-                  <option value="LP-904">Order LP-904</option>
-                </select>
-
+              <button
+                type="button"
+                className={`untitled-filter-pill ${selectedOrderId === 'all' ? 'active' : ''}`}
+                onClick={() => setSelectedOrderId('all')}
+              >
+                All orders
+              </button>
+              {['LP-901', 'TX-1024'].map(oid => (
                 <button
-                  onClick={() => setShowFullMrpModal(true)}
+                  key={oid}
+                  type="button"
+                  className={`untitled-filter-pill ${selectedOrderId === oid ? 'active' : ''}`}
+                  onClick={() => setSelectedOrderId(selectedOrderId === oid ? 'all' : oid)}
+                >
+                  {oid} {selectedOrderId === oid && <span className="untitled-filter-remove">&times;</span>}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="untitled-filter-pill"
+                onClick={() => setShowFullMrpModal(true)}
+              >
+                <Filter size={12} /> More filters
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="untitled-search-input-wrap">
+                <Search size={14} color="#667085" />
+                <input
+                  type="text"
+                  className="untitled-search-input"
+                  placeholder="Search materials..."
+                  value={mrpSearchQuery}
+                  onChange={(e) => setMrpSearchQuery(e.target.value)}
+                />
+                {mrpSearchQuery && (
+                  <button
+                    type="button"
+                    className="untitled-filter-remove"
+                    onClick={() => setMrpSearchQuery('')}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => setShowFullMrpModal(true)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#18191B',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                View All &rarr;
+              </button>
+            </div>
+          </div>
+
+          {/* Untitled UI Data Table */}
+          <div className="untitled-table-wrapper">
+            <table className="untitled-table">
+              <thead>
+                <tr>
+                  <th className="col-cb">
+                    <input
+                      type="checkbox"
+                      className="untitled-checkbox"
+                      checked={top5Materials.length > 0 && top5Materials.every(m => selectedMaterialIds.includes(m.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedMaterialIds(Array.from(new Set([...selectedMaterialIds, ...top5Materials.map(m => m.id)])));
+                        } else {
+                          const curIds = new Set(top5Materials.map(m => m.id));
+                          setSelectedMaterialIds(selectedMaterialIds.filter(id => !curIds.has(id)));
+                        }
+                      }}
+                    />
+                  </th>
+                  <th>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      Material <ArrowDown size={12} color="#667085" />
+                    </div>
+                  </th>
+                  <th>Category</th>
+                  <th style={{ width: 160 }}>Stock Coverage</th>
+                  <th style={{ textAlign: 'right' }}>Required</th>
+                  <th style={{ textAlign: 'right' }}>Available</th>
+                  <th style={{ textAlign: 'right' }}>Shortage</th>
+                  <th>Status</th>
+                  <th style={{ width: 100, textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {top5Materials.map((item) => {
+                  const isSelected = selectedMaterialIds.includes(item.id);
+                  const isShortage = item.shortageQuantity > 0;
+                  const isLow = item.mrpStatus === 'Low Stock';
+                  const coveragePercent = Math.min(100, Math.round((item.availableToAllocate / Math.max(1, item.requiredQuantity)) * 100));
+
+                  let pillClass = 'success';
+                  let statusLabel = 'Fulfilled';
+                  if (isShortage) {
+                    pillClass = 'danger';
+                    statusLabel = 'Shortage';
+                  } else if (isLow) {
+                    pillClass = 'warning';
+                    statusLabel = 'Low Stock';
+                  }
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className={isSelected ? 'is-selected' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        setSelectedSupplierMaterialId(item.id);
+                        setShowSupplierModal(true);
+                      }}
+                    >
+                      <td className="col-cb" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="untitled-checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            if (isSelected) {
+                              setSelectedMaterialIds(selectedMaterialIds.filter(id => id !== item.id));
+                            } else {
+                              setSelectedMaterialIds([...selectedMaterialIds, item.id]);
+                            }
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 700, color: '#101828', fontSize: 13.5 }}>
+                          {item.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          Unit: {item.unit}
+                        </div>
+                      </td>
+                      <td style={{ textTransform: 'capitalize', color: '#475467', fontWeight: 500 }}>
+                        {item.category}
+                      </td>
+                      <td>
+                        <div className="untitled-progress-wrap">
+                          <div className="untitled-progress-track">
+                            <div
+                              className="untitled-progress-fill"
+                              style={{
+                                width: `${coveragePercent}%`,
+                                background: isShortage ? '#f04438' : isLow ? '#f79009' : '#12b76a'
+                              }}
+                            />
+                          </div>
+                          <span className="untitled-progress-percent">{coveragePercent}%</span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#101828', fontVariantNumeric: 'tabular-nums' }}>
+                        {item.requiredQuantity.toLocaleString()} {item.unit}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#475467', fontVariantNumeric: 'tabular-nums' }}>
+                        {item.availableToAllocate.toLocaleString()} {item.unit}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: isShortage ? '#b42318' : '#98a2b3', fontVariantNumeric: 'tabular-nums' }}>
+                        {isShortage ? `${item.shortageQuantity.toLocaleString()} ${item.unit}` : '-'}
+                      </td>
+                      <td>
+                        <span className={`untitled-status-pill ${pillClass}`}>
+                          <span className="dot" />
+                          <span>{statusLabel}</span>
+                        </span>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="admin-btn-secondary"
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            color: '#18191B',
+                            background: '#F8F0DF',
+                            border: '1px solid #79B4B7',
+                            borderRadius: 8,
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => {
+                            setSelectedSupplierMaterialId(item.id);
+                            setShowSupplierModal(true);
+                          }}
+                        >
+                          Suppliers
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="untitled-table-footer">
+            <button type="button" className="untitled-page-btn" onClick={() => {}}>Previous</button>
+            <span className="untitled-page-info">Page 1 of {Math.max(1, Math.ceil(top5Materials.length / 5))}</span>
+            <button type="button" className="untitled-page-btn" onClick={() => {}}>Next</button>
+          </div>
+        </div>
+
+        {/* FULL-WIDTH CARD 2: RECENT PURCHASE ORDERS */}
+        <div className="untitled-table-card" style={{ width: '100%' }}>
+          <div className="untitled-table-toolbar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ShoppingCart size={18} color="#18191B" />
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#101828', margin: 0 }}>
+                Recent Purchase Orders
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowFullPoModal(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#18191B',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: 0
+              }}
+            >
+              View All Purchase Orders &rarr;
+            </button>
+          </div>
+
+          <div className="untitled-table-wrapper">
+            <table className="untitled-table">
+              <thead>
+                <tr>
+                  <th className="col-cb">
+                    <input
+                      type="checkbox"
+                      className="untitled-checkbox"
+                      checked={recentPurchaseOrders.length > 0 && recentPurchaseOrders.every(p => selectedPoIds.includes(p.poNo))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedPoIds(Array.from(new Set([...selectedPoIds, ...recentPurchaseOrders.map(p => p.poNo)])));
+                        } else {
+                          const curIds = new Set(recentPurchaseOrders.map(p => p.poNo));
+                          setSelectedPoIds(selectedPoIds.filter(id => !curIds.has(id)));
+                        }
+                      }}
+                    />
+                  </th>
+                  <th style={{ width: 140 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      PO Number <ArrowDown size={12} color="#667085" />
+                    </div>
+                  </th>
+                  <th>Supplier</th>
+                  <th>Material &amp; Scope</th>
+                  <th style={{ textAlign: 'right' }}>Total Amount</th>
+                  <th>Status</th>
+                  <th style={{ width: 100, textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentPurchaseOrders.map((po) => {
+                  const isSelected = selectedPoIds.includes(po.poNo);
+                  let pillClass = 'warning';
+                  let statusText = 'Pending';
+                  if (po.status === 'Fully Received') {
+                    pillClass = 'success';
+                    statusText = 'Fulfilled';
+                  } else if (po.status === 'Ordered' || po.status === 'Approved') {
+                    pillClass = 'indigo';
+                    statusText = 'Confirmed';
+                  } else if (po.status === 'Partially Received' || po.status === 'Quality Inspection') {
+                    pillClass = 'warning';
+                    statusText = 'In Inspection';
+                  } else if (po.status === 'Rejected' || po.status === 'Cancelled') {
+                    pillClass = 'danger';
+                    statusText = 'Cancelled';
+                  }
+
+                  return (
+                    <tr
+                      key={po.poNo}
+                      className={isSelected ? 'is-selected' : ''}
+                      onClick={() => setShowFullPoModal(true)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td className="col-cb" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="untitled-checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            if (isSelected) {
+                              setSelectedPoIds(selectedPoIds.filter(id => id !== po.poNo));
+                            } else {
+                              setSelectedPoIds([...selectedPoIds, po.poNo]);
+                            }
+                          }}
+                        />
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#101828', whiteSpace: 'nowrap' }}>
+                        #{po.poNo}
+                        <div style={{ fontSize: 11, color: '#64748b', fontWeight: 400 }}>
+                          {po.relatedOrderIds && po.relatedOrderIds.length > 0 ? `Orders: ${po.relatedOrderIds.join(', ')}` : 'Stock Buffer'}
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 600, color: '#101828' }}>
+                        {po.supplierName}
+                      </td>
+                      <td>
+                        <div style={{ color: '#344054', fontWeight: 500 }}>
+                          {po.items[0]?.materialName || 'Raw Material'}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          {po.items.length} item{po.items.length > 1 ? 's' : ''} &bull; Expected: {po.expectedDelivery}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#101828', fontVariantNumeric: 'tabular-nums' }}>
+                        ₹{po.totalAmount.toLocaleString('en-IN')}
+                      </td>
+                      <td>
+                        <span className={`untitled-status-pill ${pillClass}`}>
+                          <span className="dot" />
+                          <span>{statusText}</span>
+                        </span>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="admin-btn-secondary"
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            color: '#18191B',
+                            background: '#F8F0DF',
+                            border: '1px solid #79B4B7',
+                            borderRadius: 8,
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => setShowFullPoModal(true)}
+                        >
+                          Inspect
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="untitled-table-footer">
+            <button type="button" className="untitled-page-btn" onClick={() => {}}>Previous</button>
+            <span className="untitled-page-info">Page 1 of 1</span>
+            <button type="button" className="untitled-page-btn" onClick={() => {}}>Next</button>
+          </div>
+        </div>
+
+        {/* LOWER SECTION: PROCUREMENT ALERTS & PURCHASE APPROVALS (Compact 2-Column Row below tables) */}
+        {showAlertsSection && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 16 }}>
+            {/* CARD 1: PROCUREMENT ALERTS */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              border: '1px solid #eaecf0',
+              padding: 18,
+              boxShadow: '0 1px 2px rgba(16, 24, 40, 0.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <AlertTriangle size={16} color="#dc2626" />
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#101828', margin: 0 }}>
+                    Procurement Alerts
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowAllAlertsModal(true)}
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#164e32',
+                    color: '#18191B',
                     fontSize: 11,
                     fontWeight: 700,
                     cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 3,
                     padding: 0
                   }}
                 >
-                  View All Materials &rarr;
+                  View All Alerts ({alerts.length}) &rarr;
                 </button>
               </div>
-            </div>
 
-            {/* Clean Material Table (Only top 5 rows, sorted by shortage priority) */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
-                <thead>
-                  <tr style={{ color: '#64748b', borderBottom: '1px solid #edf1f5', textAlign: 'left' }}>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Material</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Required</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Available to Allocate</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Shortage</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Status</th>
-                    <th style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600 }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {top5Materials.map((item) => {
-                    const isShortage = item.shortageQuantity > 0;
-                    const isLow = item.mrpStatus === 'Low Stock';
+              {/* Top 3 alerts in compact row list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {topAlerts.map((alt) => (
+                  <div
+                    key={alt.id}
+                    style={{
+                      background: alt.severity === 'critical' ? '#fef2f2' : alt.severity === 'warning' ? '#fffbeb' : '#F8F0DF',
+                      border: `1px solid ${alt.severity === 'critical' ? '#fecaca' : alt.severity === 'warning' ? '#fde68a' : '#edf2ee'}`,
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        color: alt.severity === 'critical' ? '#dc2626' : alt.severity === 'warning' ? '#b45309' : '#18191B'
+                      }}>
+                        {alt.type.replace(/_/g, ' ')}
+                      </span>
+                      {alt.affectedOrderId && (
+                        <span style={{ fontSize: 9.5, fontWeight: 700, color: '#475569', background: '#ffffff', padding: '1px 6px', borderRadius: 4 }}>
+                          {alt.affectedOrderId}
+                        </span>
+                      )}
+                    </div>
 
-                    return (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                        <td style={{ padding: '9px 6px' }}>
-                          <div style={{ fontWeight: 700, color: '#0a0d10' }}>{item.name}</div>
-                          <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase' }}>
-                            {item.category} &bull; Unit: {item.unit}
-                          </div>
-                        </td>
+                    <div style={{ fontSize: 11, color: '#1e293b', fontWeight: 600 }}>
+                      {alt.issue}
+                    </div>
 
-                        <td style={{ padding: '9px 6px', color: '#0a0d10', fontWeight: 600 }}>
-                          {item.requiredQuantity.toLocaleString()} {item.unit}
-                        </td>
-
-                        <td style={{ padding: '9px 6px', color: '#475569' }}>
-                          {item.availableToAllocate.toLocaleString()} {item.unit}
-                        </td>
-
-                        <td style={{ padding: '9px 6px', fontWeight: 800, color: isShortage ? '#dc2626' : '#94a3b8' }}>
-                          {isShortage ? `${item.shortageQuantity.toLocaleString()} ${item.unit}` : '-'}
-                        </td>
-
-                        <td style={{ padding: '9px 6px' }}>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '2px 8px',
-                            borderRadius: 9999,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            background: isShortage ? '#fee2e2' : isLow ? '#fef3c7' : '#dff1ea',
-                            color: isShortage ? '#dc2626' : isLow ? '#b45309' : '#164e32'
-                          }}>
-                            <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />
-                            {item.mrpStatus}
-                          </span>
-                        </td>
-
-                        <td style={{ padding: '9px 6px', textAlign: 'right' }}>
-                          {isShortage ? (
-                            <button
-                              onClick={() => {
-                                setSelectedSupplierMaterialId(item.id);
-                                setShowSupplierModal(true);
-                              }}
-                              style={{
-                                background: '#f0fdf4',
-                                border: '1px solid #bbf7d0',
-                                color: '#164e32',
-                                borderRadius: 9999,
-                                padding: '3px 9px',
-                                fontSize: 10,
-                                fontWeight: 700,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Compare Suppliers
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => setShowFullMrpModal(true)}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#64748b',
-                                fontSize: 10,
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Details
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* CARD 2: RECENT PURCHASE ORDERS (Latest 3 records) */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ShoppingCart size={16} color="#164e32" />
-                <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
-                  Recent Purchase Orders
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowFullPoModal(true)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#164e32',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: 0
-                }}
-              >
-                View All Purchase Orders &rarr;
-              </button>
-            </div>
-
-            {/* Clean Recent POs Table */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
-                <thead>
-                  <tr style={{ color: '#64748b', borderBottom: '1px solid #edf1f5', textAlign: 'left' }}>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>PO Number</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Supplier</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600 }}>Amount</th>
-                    <th style={{ padding: '8px 6px', fontWeight: 600, textAlign: 'right' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentPurchaseOrders.map((po) => {
-                    const statusBadge = getPoStatusBadge(po.status);
-                    return (
-                      <tr
-                        key={po.poNo}
-                        onClick={() => setShowFullPoModal(true)}
-                        style={{ borderBottom: '1px solid #f8fafc', cursor: 'pointer' }}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                      <span style={{ fontSize: 10, color: '#64748b' }}>
+                        Required by: <strong>{alt.requiredByDate || 'Immediate'}</strong>
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (alt.actionPayload?.poNo) {
+                            setShowApprovalModal(true);
+                          } else if (alt.actionPayload?.materialId) {
+                            setSelectedSupplierMaterialId(alt.actionPayload.materialId);
+                            setShowSupplierModal(true);
+                          } else {
+                            setShowAllAlertsModal(true);
+                          }
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#18191B',
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
                       >
-                        <td style={{ padding: '9px 6px', fontWeight: 800, color: '#0a0d10' }}>
-                          {po.poNo}
-                        </td>
-                        <td style={{ padding: '9px 6px', color: '#334155', fontWeight: 600 }}>
-                          {po.supplierName}
-                          <div style={{ fontSize: 9.5, color: '#94a3b8' }}>
-                            {po.items[0]?.materialName}
-                          </div>
-                        </td>
-                        <td style={{ padding: '9px 6px', fontWeight: 800, color: '#0a0d10' }}>
-                          ₹{po.totalAmount.toLocaleString('en-IN')}
-                        </td>
-                        <td style={{ padding: '9px 6px', textAlign: 'right' }}>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '2px 8px',
-                            borderRadius: 9999,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            background: statusBadge.bg,
-                            color: statusBadge.color,
-                            border: `1px solid ${statusBadge.border}`
-                          }}>
-                            {po.status}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        Resolve &rarr;
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* RIGHT COLUMN: Compact Alerts + Purchase Approvals */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {/* CARD 1: PROCUREMENT ALERTS (Top 2-3 most important alerts) */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* CARD 2: PURCHASE APPROVALS */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              border: '1px solid #eaecf0',
+              padding: 18,
+              boxShadow: '0 1px 2px rgba(16, 24, 40, 0.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertTriangle size={15} color="#dc2626" />
-                <h3 style={{ fontSize: 13.5, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
-                  Procurement Alerts
+                <Layers size={16} color="#18191B" />
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#101828', margin: 0 }}>
+                  Purchase Approvals
                 </h3>
               </div>
-              <button
-                onClick={() => setShowAllAlertsModal(true)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#164e32',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: 0
-                }}
-              >
-                View All Alerts ({alerts.length}) &rarr;
-              </button>
-            </div>
 
-            {/* Top 2-3 alerts */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {topAlerts.map((alt) => (
-                <div
-                  key={alt.id}
-                  style={{
-                    background: alt.severity === 'critical' ? '#fef2f2' : alt.severity === 'warning' ? '#fffbeb' : '#f0fdf4',
-                    border: `1px solid ${alt.severity === 'critical' ? '#fecaca' : alt.severity === 'warning' ? '#fde68a' : '#bbf7d0'}`,
-                    borderRadius: 14,
+              {primaryPendingPo ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Status banner */}
+                  <div style={{
+                    background: '#fef3c7',
+                    border: '1px solid #fde68a',
+                    borderRadius: 10,
                     padding: '10px 12px',
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{
-                      fontSize: 9.5,
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      color: alt.severity === 'critical' ? '#dc2626' : alt.severity === 'warning' ? '#b45309' : '#164e32'
-                    }}>
-                      {alt.type.replace(/_/g, ' ')}
-                    </span>
-                    {alt.affectedOrderId && (
-                      <span style={{ fontSize: 9.5, fontWeight: 700, color: '#475569', background: '#ffffff', padding: '1px 6px', borderRadius: 4 }}>
-                        {alt.affectedOrderId}
-                      </span>
-                    )}
+                    alignItems: 'flex-start',
+                    gap: 8
+                  }}>
+                    <ShieldAlert size={16} color="#b45309" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#92400e' }}>
+                        {pendingPurchaseApprovals} Purchase Requisition Awaiting Approval
+                      </div>
+                      <div style={{ fontSize: 10.5, color: '#78350f', marginTop: 2 }}>
+                        <strong>{primaryPendingPo.poNo}</strong> &bull; {primaryPendingPo.supplierName} &bull; <strong>₹{primaryPendingPo.totalAmount.toLocaleString('en-IN')}</strong>
+                      </div>
+                      <div style={{ fontSize: 10, color: '#92400e', marginTop: 2 }}>
+                        Resolves shortage on Order {primaryPendingPo.relatedOrderIds.join(', ')}.
+                      </div>
+                    </div>
                   </div>
 
-                  <div style={{ fontSize: 11, color: '#1e293b', fontWeight: 600 }}>
-                    {alt.issue}
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
-                    <span style={{ fontSize: 10, color: '#64748b' }}>
-                      Required by: <strong>{alt.requiredByDate || 'Immediate'}</strong>
-                    </span>
+                  {/* Primary Review Action */}
+                  <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => {
-                        if (alt.actionPayload?.poNo) {
-                          setShowApprovalModal(true);
-                        } else if (alt.actionPayload?.materialId) {
-                          setSelectedSupplierMaterialId(alt.actionPayload.materialId);
-                          setShowSupplierModal(true);
-                        } else {
-                          setShowAllAlertsModal(true);
-                        }
-                      }}
+                      onClick={() => setShowApprovalModal(true)}
+                      className="admin-btn-primary"
+                      style={{ flex: 1, padding: '9px 12px', fontSize: 11, justifyContent: 'center', color: '#18191B' }}
+                    >
+                      <span>Review Requests</span>
+                      <ArrowRight size={13} />
+                    </button>
+
+                    <button
+                      onClick={() => handleAdminApprovePo(primaryPendingPo.poNo)}
                       style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#164e32',
-                        fontSize: 10,
+                        background: '#F8F0DF',
+                        color: '#18191B',
+                        border: '1px solid #79B4B7',
+                        borderRadius: 8,
+                        padding: '9px 12px',
+                        fontSize: 11,
                         fontWeight: 700,
-                        cursor: 'pointer',
-                        padding: 0
+                        cursor: 'pointer'
                       }}
                     >
-                      Resolve &rarr;
+                      1-Click Approve
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* CARD 2: PURCHASE APPROVALS (Compact Review Card) */}
-          <div style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            border: '1px solid #e5e9ee',
-            padding: 18,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Layers size={16} color="#164e32" />
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0a0d10', margin: 0 }}>
-                Purchase Approvals
-              </h3>
-            </div>
-
-            {primaryPendingPo ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* Status banner */}
+              ) : (
                 <div style={{
-                  background: '#fef3c7',
-                  border: '1px solid #fde68a',
-                  borderRadius: 14,
-                  padding: '10px 12px',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 8
+                  padding: '16px',
+                  textAlign: 'center',
+                  background: '#f8fafc',
+                  borderRadius: 12,
+                  border: '1px dashed #cbd5e1',
+                  fontSize: 11,
+                  color: '#64748b'
                 }}>
-                  <ShieldAlert size={16} color="#b45309" style={{ flexShrink: 0, marginTop: 1 }} />
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: '#92400e' }}>
-                      {pendingPurchaseApprovals} Purchase Requisition Awaiting Approval
-                    </div>
-                    <div style={{ fontSize: 10.5, color: '#78350f', marginTop: 2 }}>
-                      <strong>{primaryPendingPo.poNo}</strong> &bull; {primaryPendingPo.supplierName} &bull; <strong>₹{primaryPendingPo.totalAmount.toLocaleString('en-IN')}</strong>
-                    </div>
-                    <div style={{ fontSize: 10, color: '#92400e', marginTop: 2 }}>
-                      Resolves shortage on Order {primaryPendingPo.relatedOrderIds.join(', ')}.
-                    </div>
-                  </div>
+                  <CheckCircle2 size={22} color="#16a34a" style={{ margin: '0 auto 4px' }} />
+                  <div>Zero pending purchase requests.</div>
+                  <div style={{ fontSize: 10, color: '#94a3b8' }}>All PO commitments are up to date.</div>
                 </div>
-
-                {/* Primary Review Action */}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => setShowApprovalModal(true)}
-                    className="admin-btn-primary"
-                    style={{ flex: 1, padding: '9px 12px', fontSize: 11, justifyContent: 'center' }}
-                  >
-                    <span>Review Requests</span>
-                    <ArrowRight size={13} />
-                  </button>
-
-                  <button
-                    onClick={() => handleAdminApprovePo(primaryPendingPo.poNo)}
-                    style={{
-                      background: '#dff1ea',
-                      color: '#164e32',
-                      border: '1px solid #bbf7d0',
-                      borderRadius: 9999,
-                      padding: '9px 12px',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    1-Click Approve
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                padding: '16px',
-                textAlign: 'center',
-                background: '#f8fafc',
-                borderRadius: 14,
-                border: '1px dashed #cbd5e1',
-                fontSize: 11,
-                color: '#64748b'
-              }}>
-                <CheckCircle2 size={22} color="#16a34a" style={{ margin: '0 auto 4px' }} />
-                <div>Zero pending purchase requests.</div>
-                <div style={{ fontSize: 10, color: '#94a3b8' }}>All PO commitments are up to date.</div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* =========================================================================
@@ -1849,7 +2022,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                       </td>
                       <td style={{ padding: '8px 6px' }}>{item.physicalStock.toLocaleString()} {item.unit}</td>
                       <td style={{ padding: '8px 6px', color: '#64748b' }}>{item.reservedStock.toLocaleString()} {item.unit}</td>
-                      <td style={{ padding: '8px 6px', fontWeight: 700, color: '#164e32' }}>{item.availableToAllocate.toLocaleString()} {item.unit}</td>
+                      <td style={{ padding: '8px 6px', fontWeight: 700, color: '#18191B' }}>{item.availableToAllocate.toLocaleString()} {item.unit}</td>
                       <td style={{ padding: '8px 6px', fontWeight: 600 }}>{item.requiredQuantity.toLocaleString()} {item.unit}</td>
                       <td style={{ padding: '8px 6px', fontWeight: 800, color: item.shortageQuantity > 0 ? '#dc2626' : '#94a3b8' }}>
                         {item.shortageQuantity > 0 ? `${item.shortageQuantity.toLocaleString()} ${item.unit}` : '-'}
@@ -1860,8 +2033,8 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                           borderRadius: 9999,
                           fontSize: 10,
                           fontWeight: 700,
-                          background: item.shortageQuantity > 0 ? '#fee2e2' : item.mrpStatus === 'Low Stock' ? '#fef3c7' : '#dff1ea',
-                          color: item.shortageQuantity > 0 ? '#dc2626' : item.mrpStatus === 'Low Stock' ? '#b45309' : '#164e32'
+                          background: item.shortageQuantity > 0 ? '#fee2e2' : item.mrpStatus === 'Low Stock' ? '#fef3c7' : '#F8F0DF',
+                          color: item.shortageQuantity > 0 ? '#dc2626' : item.mrpStatus === 'Low Stock' ? '#b45309' : '#18191B'
                         }}>
                           {item.mrpStatus}
                         </span>
@@ -1874,9 +2047,9 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                             setShowSupplierModal(true);
                           }}
                           style={{
-                            background: '#f0fdf4',
-                            border: '1px solid #bbf7d0',
-                            color: '#164e32',
+                            background: '#F8F0DF',
+                            border: '1px solid #edf2ee',
+                            color: '#18191B',
                             borderRadius: 9999,
                             padding: '3px 8px',
                             fontSize: 10,
@@ -1928,7 +2101,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                     <div
                       key={sup.id}
                       style={{
-                        border: sup.isAiRecommended ? '2px solid #bbf7d0' : '1px solid #e2e8f0',
+                        border: sup.isAiRecommended ? '2px solid #edf2ee' : '1px solid #e2e8f0',
                         borderRadius: 18,
                         background: sup.isAiRecommended ? '#f8fdfa' : '#ffffff',
                         padding: '12px 14px',
@@ -1943,8 +2116,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                           position: 'absolute',
                           top: -9,
                           right: 14,
-                          background: '#164e32',
-                          color: '#ffffff',
+                          background: '#79B4B7', color: '#18191B',
                           borderRadius: 9999,
                           padding: '1px 8px',
                           fontSize: 9,
@@ -1967,7 +2139,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                         </div>
 
                         <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: 16, fontWeight: 800, color: '#164e32' }}>₹{sup.unitPrice}</span>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: '#18191B' }}>₹{sup.unitPrice}</span>
                           <span style={{ fontSize: 10, color: '#64748b' }}>/{sup.unit}</span>
                         </div>
                       </div>
@@ -1982,7 +2154,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                        <div style={{ fontSize: 10, color: sup.isAiRecommended ? '#164e32' : '#64748b', fontStyle: 'italic' }}>
+                        <div style={{ fontSize: 10, color: sup.isAiRecommended ? '#18191B' : '#64748b', fontStyle: 'italic' }}>
                           {sup.aiRecommendation}
                         </div>
 
@@ -2053,7 +2225,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                         <td style={{ padding: '8px 6px', fontWeight: 800, color: '#0a0d10' }}>{po.poNo}</td>
                         <td style={{ padding: '8px 6px', fontWeight: 600 }}>{po.supplierName}</td>
                         <td style={{ padding: '8px 6px' }}>{item?.materialName} ({item?.orderedQuantity.toLocaleString()} {item?.unit})</td>
-                        <td style={{ padding: '8px 6px', color: '#164e32', fontWeight: 700 }}>{item?.receivedQuantity.toLocaleString()} {item?.unit}</td>
+                        <td style={{ padding: '8px 6px', color: '#18191B', fontWeight: 700 }}>{item?.receivedQuantity.toLocaleString()} {item?.unit}</td>
                         <td style={{ padding: '8px 6px', color: item?.remainingQuantity ? '#dc2626' : '#64748b', fontWeight: 700 }}>
                           {item?.remainingQuantity ? `${item?.remainingQuantity.toLocaleString()} ${item?.unit}` : '0'}
                         </td>
@@ -2119,7 +2291,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Related Order(s):</span>
-                  <span style={{ fontWeight: 700, color: '#164e32' }}>{primaryPendingPo.relatedOrderIds.join(', ')}</span>
+                  <span style={{ fontWeight: 700, color: '#18191B' }}>{primaryPendingPo.relatedOrderIds.join(', ')}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Material Item:</span>
@@ -2131,7 +2303,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: 6, fontWeight: 800 }}>
                   <span style={{ color: '#0a0d10' }}>Total Landed Commitment:</span>
-                  <span style={{ color: '#164e32', fontSize: 14 }}>₹{primaryPendingPo.totalAmount.toLocaleString('en-IN')}</span>
+                  <span style={{ color: '#18191B', fontSize: 14 }}>₹{primaryPendingPo.totalAmount.toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
@@ -2195,8 +2367,8 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                 <div
                   key={alt.id}
                   style={{
-                    background: alt.severity === 'critical' ? '#fef2f2' : alt.severity === 'warning' ? '#fffbeb' : '#f0fdf4',
-                    border: `1px solid ${alt.severity === 'critical' ? '#fecaca' : alt.severity === 'warning' ? '#fde68a' : '#bbf7d0'}`,
+                    background: alt.severity === 'critical' ? '#fef2f2' : alt.severity === 'warning' ? '#fffbeb' : '#F8F0DF',
+                    border: `1px solid ${alt.severity === 'critical' ? '#fecaca' : alt.severity === 'warning' ? '#fde68a' : '#edf2ee'}`,
                     borderRadius: 14,
                     padding: '10px 12px'
                   }}
@@ -2319,11 +2491,11 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: 10, color: '#164e32', fontWeight: 700, display: 'block', marginBottom: 2 }}>Accepted (Usable)</label>
+                    <label style={{ fontSize: 10, color: '#18191B', fontWeight: 700, display: 'block', marginBottom: 2 }}>Accepted (Usable)</label>
                     <input
                       type="number"
                       className="admin-form-input"
-                      style={{ border: '2px solid #bbf7d0', background: '#f0fdf4' }}
+                      style={{ border: '2px solid #edf2ee', background: '#F8F0DF' }}
                       value={inwardForm.acceptedQuantity}
                       onChange={(e) => setInwardForm({ ...inwardForm, acceptedQuantity: +e.target.value })}
                       required
@@ -2558,7 +2730,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                 style={{
                   flex: 1,
                   background: '#dc2626',
-                  color: '#ffffff',
+                  color: '#18191B',
                   border: 'none',
                   borderRadius: 9999,
                   padding: '9px 14px',
@@ -2629,8 +2801,8 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
                       <td style={{ padding: '8px 6px', fontWeight: 600 }}>{tx.materialName}</td>
                       <td style={{ padding: '8px 6px' }}>
                         <span style={{
-                          background: tx.quantityChange > 0 ? '#dff1ea' : '#f1f5f9',
-                          color: tx.quantityChange > 0 ? '#164e32' : '#475569',
+                          background: tx.quantityChange > 0 ? '#F8F0DF' : '#f1f5f9',
+                          color: tx.quantityChange > 0 ? '#18191B' : '#475569',
                           padding: '2px 7px',
                           borderRadius: 4,
                           fontSize: 9.5,
@@ -2667,8 +2839,7 @@ export const MaterialsProcurementModule: React.FC<MaterialsProcurementModuleProp
           position: 'fixed',
           bottom: 24,
           right: 24,
-          background: '#164e32',
-          color: '#ffffff',
+          background: '#79B4B7', color: '#18191B',
           borderRadius: 14,
           padding: '10px 18px',
           fontSize: 11.5,

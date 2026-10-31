@@ -50,50 +50,62 @@ export const ResourcesCatalogModule: React.FC = () => {
 
       {/* Materials Tab */}
       {activeTab === 'materials' && (
-        <div style={{
-          background: 'var(--c-card-white)',
-          borderRadius: 16,
-          padding: 16,
-          boxShadow: 'var(--shadow-card)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10
-        }}>
-          <h4 style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--c-text-primary)' }}>Raw Materials Stock Ledger & Reservations</h4>
-          <table style={{ width: '100%', fontSize: 11, textAlign: 'left', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #ebdcd3', color: 'var(--c-text-table-head)' }}>
-                <th style={{ padding: '8px 6px' }}>Material Item</th>
-                <th style={{ padding: '8px 6px' }}>Total In Stock</th>
-                <th style={{ padding: '8px 6px' }}>Reserved for Orders</th>
-                <th style={{ padding: '8px 6px' }}>Free Available Stock</th>
-                <th style={{ padding: '8px 6px' }}>Current Market Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style={{ borderBottom: '1px solid #f6ebe3' }}>
-                <td style={{ padding: '8px 6px', fontWeight: 700 }}>Cotton Fabric (Greige 40s)</td>
-                <td style={{ padding: '8px 6px' }}>2,000 m</td>
-                <td style={{ padding: '8px 6px', color: '#d97706' }}>1,400 m (TX-1024)</td>
-                <td style={{ padding: '8px 6px', color: '#dc2626', fontWeight: 800 }}>600 m (Shortfall!)</td>
-                <td style={{ padding: '8px 6px' }}>₹120 / m</td>
-              </tr>
-              <tr style={{ borderBottom: '1px solid #f6ebe3' }}>
-                <td style={{ padding: '8px 6px', fontWeight: 700 }}>Cotton Yarn 40s Combed</td>
-                <td style={{ padding: '8px 6px' }}>520 kg</td>
-                <td style={{ padding: '8px 6px', color: '#d97706' }}>500 kg (TX-1024)</td>
-                <td style={{ padding: '8px 6px', color: '#16a34a', fontWeight: 800 }}>20 kg (Sufficient)</td>
-                <td style={{ padding: '8px 6px' }}>₹240 / kg</td>
-              </tr>
-              <tr style={{ borderBottom: '1px solid #f6ebe3' }}>
-                <td style={{ padding: '8px 6px', fontWeight: 700 }}>Reactive Eco-Dyes & Chemicals</td>
-                <td style={{ padding: '8px 6px' }}>300 kg</td>
-                <td style={{ padding: '8px 6px', color: '#d97706' }}>350 kg (TX-1025)</td>
-                <td style={{ padding: '8px 6px', color: '#dc2626', fontWeight: 800 }}>50 kg (Low Stock!)</td>
-                <td style={{ padding: '8px 6px' }}>₹180 / kg</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="modern-table-card">
+          <div className="modern-table-toolbar">
+            <h4 style={{ fontSize: 13, fontWeight: 800, color: '#111827' }}>Raw Materials Stock Ledger &amp; Reservations</h4>
+          </div>
+          <div className="modern-data-table-wrapper">
+            <table className="modern-data-table">
+              <thead>
+                <tr>
+                  <th>Material Item</th>
+                  <th style={{ textAlign: 'right' }}>Total In Stock</th>
+                  <th>Reserved for Orders</th>
+                  <th>Free Available Stock</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Market Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="is-selected">
+                  <td style={{ fontWeight: 700, color: '#111827' }}>Cotton Fabric (Greige 40s)</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>2,000 m</td>
+                  <td style={{ color: '#d97706' }}>1,400 m (TX-1024)</td>
+                  <td style={{ color: '#dc2626', fontWeight: 800 }}>600 m</td>
+                  <td>
+                    <span className="status-dot-pill failed">
+                      SHORTFALL
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>₹120 / m</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 700, color: '#111827' }}>Cotton Yarn 40s Combed</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>520 kg</td>
+                  <td style={{ color: '#d97706' }}>500 kg (TX-1024)</td>
+                  <td style={{ color: '#16a34a', fontWeight: 800 }}>20 kg</td>
+                  <td>
+                    <span className="status-dot-pill fulfilled">
+                      SUFFICIENT
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>₹240 / kg</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 700, color: '#111827' }}>Reactive Eco-Dyes &amp; Chemicals</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>300 kg</td>
+                  <td style={{ color: '#d97706' }}>350 kg (TX-1025)</td>
+                  <td style={{ color: '#dc2626', fontWeight: 800 }}>50 kg</td>
+                  <td>
+                    <span className="status-dot-pill pending">
+                      LOW STOCK
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>₹180 / kg</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
